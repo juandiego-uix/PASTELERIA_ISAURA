@@ -148,6 +148,16 @@ Las respuestas de error mantienen el formato `{ "error": "mensaje" }` y usan có
 
 La clave service role solo se utiliza dentro de la función Python. El navegador recibe únicamente datos públicos y URLs de imágenes.
 
+### Migrar imágenes existentes
+
+Para cargar las imágenes históricas de `public/uploads/` al bucket `productos` y crear sus registros iniciales:
+
+```bash
+python script_migracion.py
+```
+
+El script usa `SUPABASE_URL` y `SUPABASE_KEY` desde `.env`, y puede ejecutarse de nuevo sin duplicar productos por nombre.
+
 ## Seguridad y operación
 
 - Validación de tipos, longitudes, fechas, estados, pagos y archivos en el backend.

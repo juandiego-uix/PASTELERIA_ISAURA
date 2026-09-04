@@ -34,7 +34,9 @@ def get_supabase() -> Client:
 def with_image_url(product):
     image = product.get("imagen")
     base_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-    if image and base_url:
+    if image and str(image).startswith(("http://", "https://")):
+        product["image_url"] = image
+    elif image and base_url:
         product["image_url"] = f"{base_url}/storage/v1/object/public/productos/{image}"
     return product
 

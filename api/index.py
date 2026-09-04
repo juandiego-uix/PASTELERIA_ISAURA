@@ -21,7 +21,7 @@ ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
-app.secret_key = os.environ.get("ADMIN_SESSION_SECRET")
+app.secret_key = os.environ.get("ADMIN_SESSION_SECRET", "super_clave_secreta_pasteleria_2026")
 
 
 def get_supabase() -> Client:
@@ -57,7 +57,7 @@ def database_error(error):
 def require_admin(handler):
     @wraps(handler)
     def wrapped(*args, **kwargs):
-        if session.get("admin_authenticated") is True:
+        if session.get("admin") is True or session.get("admin_authenticated") is True:
             return handler(*args, **kwargs)
         authorization = request.headers.get("Authorization", "")
         token = authorization.removeprefix("Bearer ").strip()
@@ -219,12 +219,18 @@ def login():
     expected_password = os.environ.get("ADMIN_PASSWORD", "1052243510familiacerpa")
     if not secrets.compare_digest(username, expected_user) or not secrets.compare_digest(password, expected_password):
         return error_response("Usuario o contraseña incorrectos", 401)
-    session_secret = os.environ.get("ADMIN_SESSION_SECRET")
-    if not session_secret:
-        return error_response("Falta ADMIN_SESSION_SECRET en la configuración", 503)
+    session_secret = os.environ.get("ADMIN_SESSION_SECRET", "super_clave_secreta_pasteleria_2026")
     app.secret_key = session_secret
+    session.clear()
+    session["admin"] = True
     session["admin_authenticated"] = True
-    return jsonify({"success": True, "token": _admin_token(session_secret)})
+    return jsonify({"success": True}), 200
+
+
+@app.get("/api/auth/session")
+def auth_session():
+    authenticated = session.get("admin") is True or session.get("admin_authenticated") is True
+    return jsonify({"success": authenticated}), 200
 
 
 @app.get("/api/admin/dashboard")

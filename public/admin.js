@@ -15,7 +15,7 @@ async function api(path, options = {}) {
     Authorization: `Bearer ${localStorage.getItem(tokenKey) || ""}`,
     ...(options.headers || {}),
   };
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(path, { ...options, headers, credentials: "same-origin" });
   if (response.status === 204) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || "Solicitud no válida");
@@ -71,6 +71,15 @@ async function loadDashboard() {
   }
 }
 
+async function restoreSession() {
+  try {
+    const result = await api("/api/auth/session");
+    if (result.success) showAdminPanel();
+  } catch (error) {
+    select("#login-error").textContent = "No se pudo comprobar la sesión. Intenta de nuevo.";
+  }
+}
+
 select("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -82,8 +91,7 @@ select("#login-form").addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(new FormData(form))),
     });
-    if (!result.success || !result.token) throw new Error("El servidor no devolvió una sesión válida");
-    localStorage.setItem(tokenKey, result.token);
+    if (result.success !== true) throw new Error(result.error || "Credenciales no válidas");
     window.location.replace("/admin.html?view=dashboard");
   } catch (error) {
     select("#login-error").textContent = error.message;
@@ -91,7 +99,7 @@ select("#login-form").addEventListener("submit", async (event) => {
   }
 });
 
-if (localStorage.getItem(tokenKey)) showAdminPanel();
+restoreSession();
 
 select("#logout").addEventListener("click", () => {
   localStorage.removeItem(tokenKey);

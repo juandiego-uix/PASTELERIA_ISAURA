@@ -7,14 +7,14 @@ from functools import wraps
 from pathlib import Path
 
 import httpx
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
+from werkzeug.exceptions import HTTPException
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-PUBLIC_DIR = BASE_DIR / "public"
 load_dotenv(BASE_DIR / ".env")
 ALLOWED_STATUSES = {"Pendiente", "En Preparación", "Entregado"}
 ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
@@ -129,6 +129,11 @@ def _product_payload(payload):
 def handle_unexpected(error):
     app.logger.exception("Error no controlado", exc_info=error)
     return error_response("Error interno del servidor. Consulta los logs de la función para más detalles.", 500)
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(error):
+    return error_response(error.description, error.code)
 
 
 @app.errorhandler(APIError)
@@ -262,8 +267,6 @@ def admin_update_order(order_id):
 def admin_delete_order(order_id):
     get_supabase().table("citas").delete().eq("id", order_id).execute()
     return ("", 204)
-
-
 @app.post("/api/admin/products")
 @require_admin
 def admin_create_product():
@@ -305,16 +308,10 @@ def admin_delete_product(product_id):
     return ("", 204)
 
 
-@app.get("/")
-def root():
-    return send_from_directory(PUBLIC_DIR, "index.html")
 
 
-@app.route("/<path:path>")
-def static_files(path):
-    if path.startswith("api/"):
-        return error_response("Ruta API no encontrada", 404)
-    requested = PUBLIC_DIR / path
-    if requested.is_file():
-        return send_from_directory(PUBLIC_DIR, path)
-    return send_from_directory(PUBLIC_DIR, "index.html")
+
+
+
+
+

@@ -112,10 +112,16 @@ python -m pip install -r api/requirements.txt
 flask --app api.index run --debug
 ```
 
+En desarrollo, sirve el frontend en otra terminal porque Flask atiende únicamente la API:
+
+```bash
+python3 -m http.server 8000 --directory public
+```
+
 Abre:
 
-- Tienda: `http://127.0.0.1:5000/`
-- Administración: `http://127.0.0.1:5000/admin.html`
+- Tienda: `http://127.0.0.1:8000/`
+- Administración: `http://127.0.0.1:8000/admin.html`
 - Salud de API: `http://127.0.0.1:5000/api/health`
 
 ## API principal

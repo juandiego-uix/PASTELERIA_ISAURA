@@ -7,7 +7,7 @@ from functools import wraps
 from pathlib import Path
 
 import httpx
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, session
 from dotenv import load_dotenv
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
@@ -21,6 +21,7 @@ ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+app.secret_key = os.environ.get("ADMIN_SESSION_SECRET")
 
 
 def get_supabase() -> Client:
@@ -56,6 +57,8 @@ def database_error(error):
 def require_admin(handler):
     @wraps(handler)
     def wrapped(*args, **kwargs):
+        if session.get("admin_authenticated") is True:
+            return handler(*args, **kwargs)
         authorization = request.headers.get("Authorization", "")
         token = authorization.removeprefix("Bearer ").strip()
         secret = os.environ.get("ADMIN_SESSION_SECRET")
@@ -219,6 +222,8 @@ def login():
     session_secret = os.environ.get("ADMIN_SESSION_SECRET")
     if not session_secret:
         return error_response("Falta ADMIN_SESSION_SECRET en la configuración", 503)
+    app.secret_key = session_secret
+    session["admin_authenticated"] = True
     return jsonify({"success": True, "token": _admin_token(session_secret)})
 
 

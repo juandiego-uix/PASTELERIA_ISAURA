@@ -17,4 +17,5 @@ La tienda está en `/` y el panel protegido en `/admin.html`. En Vercel, configu
 - Las consultas privadas pasan por el backend con la service role key; nunca se expone al navegador.
 - Las entradas se validan en servidor y las respuestas usan códigos HTTP explícitos.
 - Cambia `ADMIN_PASSWORD` y genera `ADMIN_SESSION_SECRET` antes de producción.
+- Las sesiones administrativas caducan en `ADMIN_SESSION_TTL` segundos.
 - El frontend conserva imágenes históricas en `public/uploads`; los nuevos productos usan el bucket de Supabase.

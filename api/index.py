@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import os
 import secrets
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import wraps
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def require_admin(handler):
         authorization = request.headers.get("Authorization", "")
         token = authorization.removeprefix("Bearer ").strip()
         secret = os.environ.get("ADMIN_SESSION_SECRET")
-        if not secret or not token or not hmac.compare_digest(token, _admin_token(secret)):
+        if not secret or not _valid_admin_token(token, secret):
             return error_response("Autenticación requerida", 401)
         return handler(*args, **kwargs)
 
@@ -53,7 +53,20 @@ def require_admin(handler):
 
 
 def _admin_token(secret: str) -> str:
-    return hmac.new(secret.encode(), b"isaura-admin", hashlib.sha256).hexdigest()
+    issued_at = str(int(datetime.now(timezone.utc).timestamp()))
+    signature = hmac.new(secret.encode(), f"isaura-admin:{issued_at}".encode(), hashlib.sha256).hexdigest()
+    return f"{issued_at}.{signature}"
+
+
+def _valid_admin_token(token: str, secret: str) -> bool:
+    try:
+        issued_at, signature = token.split(".", 1)
+        age = datetime.now(timezone.utc).timestamp() - int(issued_at)
+        max_age = int(os.environ.get("ADMIN_SESSION_TTL", "28800"))
+        expected = hmac.new(secret.encode(), f"isaura-admin:{issued_at}".encode(), hashlib.sha256).hexdigest()
+        return 0 <= age <= max_age and hmac.compare_digest(signature, expected)
+    except (TypeError, ValueError):
+        return False
 
 
 def _text(payload, key, maximum=160, required=True):
@@ -115,6 +128,13 @@ def health():
 def products():
     result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,created_at").order("id", desc=True).execute()
     return jsonify({"data": [with_image_url(product) for product in (result.data or [])]})
+
+
+@app.get("/api/categories")
+def categories():
+    result = get_supabase().table("productos").select("categoria").execute()
+    values = sorted({row["categoria"] for row in (result.data or []) if row.get("categoria")})
+    return jsonify({"data": values})
 
 
 @app.post("/api/orders")

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Repostería artesanal Isaura Cerpa: postres hechos para celebrar.">
+  <title>Isaura Cerpa | Repostería artesanal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">IC</span><span><b>Isaura Cerpa</b><small>Repostería artesanal</small></span></a>
+    <a class="admin-link" href="/admin.html">Acceso administración <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy"><p class="eyebrow">Hecho lento · compartido feliz</p><h1 id="hero-title">Dulces que cuentan<br><em>una historia.</em></h1><p class="hero-text">Tortas y postres artesanales diseñados para convertir cualquier fecha en un recuerdo delicioso.</p><a class="button button-dark" href="#catalogo">Explorar catálogo <span>↓</span></a></div>
+      <div class="hero-art"><img src="/uploads/Gemini_Generated_Image_i3dgegi3dgegi3dg.png" alt="Creación artesanal de Isaura Cerpa"></div>
+    </section>
+    <section class="catalog-section" id="catalogo" aria-labelledby="catalog-title">
+      <div class="section-heading"><div><p class="eyebrow">La vitrina</p><h2 id="catalog-title">Elige tu próximo favorito</h2></div><div class="catalog-tools"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar por nombre o categoría" autocomplete="off"></label><button class="button button-quiet" id="clear-search" type="button">Ver todos</button></div></div>
+      <p class="status" id="catalog-status" role="status">Cargando el catálogo...</p>
+      <div class="products-grid" id="products" aria-live="polite"></div>
+    </section>
+  </main>
+  <aside class="favorites" id="favorites-panel" aria-labelledby="favorites-title" aria-hidden="true"><div class="favorites-head"><div><p class="eyebrow">Tu selección</p><h2 id="favorites-title">Favoritos <span id="favorite-count">0</span></h2></div><button class="icon-button" id="close-favorites" aria-label="Cerrar favoritos">×</button></div><div id="favorite-list" class="favorite-list"></div><button class="button button-whatsapp" id="send-order" type="button">Enviar selección por WhatsApp <span>↗</span></button></aside>
+  <div class="scrim" id="scrim" hidden></div>
+  <button class="favorite-fab" id="open-favorites" type="button" aria-label="Abrir favoritos">♡ <span>Favoritos</span><b id="fab-count">0</b></button>
+  <div class="toast" id="toast" role="alert"></div>
+  <footer><span>Isaura Cerpa · Repostería artesanal</span><a href="https://wa.me/573215457378">321 545 7378</a></footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

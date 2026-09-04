@@ -19,7 +19,7 @@ load_dotenv(BASE_DIR / ".env")
 ALLOWED_STATUSES = {"Pendiente", "En Preparación", "Entregado"}
 ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 
-app = Flask(__name__, static_folder=str(PUBLIC_DIR), static_url_path="")
+app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 
@@ -45,7 +45,10 @@ def error_response(message: str, status: int = 400):
 
 def database_error(error):
     app.logger.exception("Error de Supabase", exc_info=error)
-    return error_response("Supabase no pudo completar la operación. Verifica tablas, credenciales y políticas RLS.", 503)
+    return jsonify({
+        "error": "Supabase no pudo completar la operación.",
+        "details": str(error),
+    }), 503
 
 
 def require_admin(handler):
@@ -149,6 +152,7 @@ def health():
 
 
 @app.get("/api/products")
+@app.get("/api/productos")
 def products():
     try:
         result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,created_at").order("id", desc=True).execute()
@@ -167,7 +171,17 @@ def categories():
         return database_error(error)
 
 
+@app.get("/api/citas")
+def citas():
+    try:
+        result = get_supabase().table("citas").select("id,nombre_cliente,contacto,fecha,hora,descripcion,estado,precio,tipo_pago,abono,origen,created_at").order("fecha").order("hora").execute()
+        return jsonify({"data": result.data or []})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
 @app.post("/api/orders")
+@app.post("/api/citas")
 def create_order():
     try:
         payload = request.get_json(silent=True) or {}
@@ -291,10 +305,16 @@ def admin_delete_product(product_id):
     return ("", 204)
 
 
-@app.route("/", defaults={"path": ""})
+@app.get("/")
+def root():
+    return send_from_directory(PUBLIC_DIR, "index.html")
+
+
 @app.route("/<path:path>")
 def static_files(path):
+    if path.startswith("api/"):
+        return error_response("Ruta API no encontrada", 404)
     requested = PUBLIC_DIR / path
-    if path and requested.is_file():
+    if requested.is_file():
         return send_from_directory(PUBLIC_DIR, path)
     return send_from_directory(PUBLIC_DIR, "index.html")

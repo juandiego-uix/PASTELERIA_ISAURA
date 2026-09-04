@@ -156,6 +156,11 @@ def health():
     return jsonify({"status": "ok", "service": "isaura-api"})
 
 
+@app.get("/api/")
+def api_root():
+    return jsonify({"mensaje": "API de Pastelería Isaura funcionando"}), 200
+
+
 @app.get("/api/products")
 @app.get("/api/productos")
 def products():
@@ -267,6 +272,8 @@ def admin_update_order(order_id):
 def admin_delete_order(order_id):
     get_supabase().table("citas").delete().eq("id", order_id).execute()
     return ("", 204)
+
+
 @app.post("/api/admin/products")
 @require_admin
 def admin_create_product():

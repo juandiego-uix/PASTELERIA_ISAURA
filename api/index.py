@@ -212,11 +212,14 @@ def login():
     payload = request.get_json(silent=True) or {}
     username = str(payload.get("username", ""))
     password = str(payload.get("password", ""))
-    expected_user = os.environ.get("ADMIN_USERNAME", "")
-    expected_password = os.environ.get("ADMIN_PASSWORD", "")
-    if not expected_user or not expected_password or not secrets.compare_digest(username, expected_user) or not secrets.compare_digest(password, expected_password):
+    expected_user = os.environ.get("ADMIN_USERNAME", "isaura")
+    expected_password = os.environ.get("ADMIN_PASSWORD", "1052243510familiacerpa")
+    if not secrets.compare_digest(username, expected_user) or not secrets.compare_digest(password, expected_password):
         return error_response("Usuario o contraseña incorrectos", 401)
-    return jsonify({"token": _admin_token(os.environ["ADMIN_SESSION_SECRET"])})
+    session_secret = os.environ.get("ADMIN_SESSION_SECRET")
+    if not session_secret:
+        return error_response("Falta ADMIN_SESSION_SECRET en la configuración", 503)
+    return jsonify({"success": True, "token": _admin_token(session_secret)})
 
 
 @app.get("/api/admin/dashboard")

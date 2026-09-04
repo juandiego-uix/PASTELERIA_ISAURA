@@ -17,7 +17,7 @@ from supabase import Client, create_client
 
 
 BASE_DIR = Path(__file__).resolve().parent
-IMAGE_DIRS = (BASE_DIR / "public" / "uploads", BASE_DIR / "uploads")
+IMAGE_DIRS = (BASE_DIR / "uploads", BASE_DIR / "public" / "uploads")
 BUCKET = "productos"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
@@ -35,7 +35,7 @@ def image_directory() -> Path:
     for directory in IMAGE_DIRS:
         if directory.is_dir():
             return directory
-    raise FileNotFoundError("No existe public/uploads/ ni uploads/")
+    raise FileNotFoundError("No existe uploads/ ni public/uploads/")
 
 
 def public_url(url: str, filename: str) -> str:

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: python -m pip install -r api/requirements.txt
+
+      - name: Compilar API
+        run: python -m py_compile api/index.py api/__init__.py
+
+      - name: Comprobar ausencia de PHP
+        run: test -z "$(find . -type f -name '*.php' -print)"

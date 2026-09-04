@@ -1,4 +1,4 @@
-# 🍰 Isaura Cerpa · Repostería Artesanal
+# Isaura Cerpa · Repostería Artesanal
 
 <p align="center">
 	<img src="public/uploads/Gemini_Generated_Image_i3dgegi3dgegi3dg.png" alt="Isaura Cerpa" width="180">
@@ -16,7 +16,7 @@
 
 Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal. El proyecto reemplaza la implementación PHP original por una arquitectura serverless moderna: Flask como API, Supabase como plataforma de datos y almacenamiento, y un frontend estático responsive sin dependencias de framework.
 
-## ✨ Experiencia
+## Experiencia
 
 - Catálogo dinámico con búsqueda por nombre y categoría.
 - Selección de favoritos persistida en el navegador.
@@ -26,7 +26,7 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 - Estados de carga, errores visibles y validación en cliente y servidor.
 - Diseño mobile-first con HTML semántico, CSS Grid/Flexbox y tipografía editorial.
 
-## 🧱 Stack tecnológico
+## Stack tecnológico
 
 | Capa | Tecnología |
 | --- | --- |
@@ -36,7 +36,7 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 | Despliegue | Vercel Serverless Functions + Static Files |
 | Operación | Variables de entorno, RLS, tokens HMAC con expiración |
 
-## 🗂️ Arquitectura
+## Arquitectura
 
 ```text
 ISAURA/
@@ -70,7 +70,7 @@ flowchart LR
 		G[Panel admin] --> C
 ```
 
-## 🚀 Instalación local
+## Instalación local
 
 ### 1. Requisitos
 
@@ -118,7 +118,7 @@ Abre:
 - Administración: `http://127.0.0.1:5000/admin.html`
 - Salud de API: `http://127.0.0.1:5000/api/health`
 
-## 🔌 API principal
+## API principal
 
 | Método | Ruta | Acceso | Propósito |
 | --- | --- | --- | --- |
@@ -133,7 +133,7 @@ Abre:
 
 Las respuestas de error mantienen el formato `{ "error": "mensaje" }` y usan códigos HTTP apropiados.
 
-## ☁️ Despliegue en Vercel
+## Despliegue en Vercel
 
 1. Importa el repositorio `juandiego-uix/PASTELERIA_ISAURA` en Vercel.
 2. Mantén la raíz del proyecto como **Root Directory**.
@@ -142,7 +142,7 @@ Las respuestas de error mantienen el formato `{ "error": "mensaje" }` y usan có
 
 La clave service role solo se utiliza dentro de la función Python. El navegador recibe únicamente datos públicos y URLs de imágenes.
 
-## 🔐 Seguridad y operación
+## Seguridad y operación
 
 - Validación de tipos, longitudes, fechas, estados, pagos y archivos en el backend.
 - Consultas privadas realizadas con la clave server-side de Supabase.
@@ -151,6 +151,6 @@ La clave service role solo se utiliza dentro de la función Python. El navegador
 - Límite de 5 MB para cargas de imágenes y tipos MIME permitidos.
 - Secretos excluidos mediante `.gitignore`.
 
-## 📄 Licencia
+## Licencia
 
 Proyecto privado de Isaura Cerpa. El código y los activos visuales no deben redistribuirse sin autorización.

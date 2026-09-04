@@ -7,11 +7,13 @@ from functools import wraps
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
+from dotenv import load_dotenv
 from supabase import Client, create_client
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PUBLIC_DIR = BASE_DIR / "public"
+load_dotenv(BASE_DIR / ".env")
 ALLOWED_STATUSES = {"Pendiente", "En Preparación", "Entregado"}
 ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 

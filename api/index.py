@@ -6,8 +6,10 @@ from datetime import date, datetime, timezone
 from functools import wraps
 from pathlib import Path
 
+import httpx
 from flask import Flask, jsonify, request, send_from_directory
 from dotenv import load_dotenv
+from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 
@@ -23,9 +25,9 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 def get_supabase() -> Client:
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
     if not url or not key:
-        raise RuntimeError("Faltan SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY")
+        raise RuntimeError("Faltan SUPABASE_URL y SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY")
     return create_client(url, key)
 
 
@@ -39,6 +41,11 @@ def with_image_url(product):
 
 def error_response(message: str, status: int = 400):
     return jsonify({"error": message}), status
+
+
+def database_error(error):
+    app.logger.exception("Error de Supabase", exc_info=error)
+    return error_response("Supabase no pudo completar la operación. Verifica tablas, credenciales y políticas RLS.", 503)
 
 
 def require_admin(handler):
@@ -118,7 +125,22 @@ def _product_payload(payload):
 @app.errorhandler(Exception)
 def handle_unexpected(error):
     app.logger.exception("Error no controlado", exc_info=error)
-    return error_response("No se pudo completar la operación", 500)
+    return error_response("Error interno del servidor. Consulta los logs de la función para más detalles.", 500)
+
+
+@app.errorhandler(APIError)
+def handle_supabase_error(error):
+    return database_error(error)
+
+
+@app.errorhandler(RuntimeError)
+def handle_configuration_error(error):
+    return database_error(error)
+
+
+@app.errorhandler(httpx.HTTPError)
+def handle_supabase_network_error(error):
+    return database_error(error)
 
 
 @app.get("/api/health")
@@ -128,15 +150,21 @@ def health():
 
 @app.get("/api/products")
 def products():
-    result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,created_at").order("id", desc=True).execute()
-    return jsonify({"data": [with_image_url(product) for product in (result.data or [])]})
+    try:
+        result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,created_at").order("id", desc=True).execute()
+        return jsonify({"data": [with_image_url(product) for product in (result.data or [])]})
+    except (APIError, RuntimeError) as error:
+        return database_error(error)
 
 
 @app.get("/api/categories")
 def categories():
-    result = get_supabase().table("productos").select("categoria").execute()
-    values = sorted({row["categoria"] for row in (result.data or []) if row.get("categoria")})
-    return jsonify({"data": values})
+    try:
+        result = get_supabase().table("productos").select("categoria").execute()
+        values = sorted({row["categoria"] for row in (result.data or []) if row.get("categoria")})
+        return jsonify({"data": values})
+    except (APIError, RuntimeError) as error:
+        return database_error(error)
 
 
 @app.post("/api/orders")
@@ -149,6 +177,8 @@ def create_order():
         return jsonify({"data": result.data[0] if result.data else None}), 201
     except ValueError as error:
         return error_response(str(error))
+    except (APIError, RuntimeError) as error:
+        return database_error(error)
 
 
 @app.post("/api/auth/login")

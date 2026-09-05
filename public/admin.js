@@ -69,11 +69,11 @@ function requestNotifications() {
 function renderAlerts() {
   const alerts = dashboard.orders.filter((order) => {
     const days = daysUntil(order.fecha);
-    return order.estado !== "Entregado" && days <= 2;
+    return order.estado !== "Entregado" && days >= 0 && days <= 2;
   });
   select("#alerts").innerHTML = alerts.map((order) => {
     const days = daysUntil(order.fecha);
-    const label = days < 0 ? "Entrega vencida" : days === 0 ? "Entrega hoy" : `Faltan ${days} día${days === 1 ? "" : "s"}`;
+    const label = days === 0 ? "Entrega hoy" : `Faltan ${days} día${days === 1 ? "" : "s"}`;
     if (dismissedAlerts.has(String(order.id))) return "";
     return `<article class="alert"><div><strong>${escapeHtml(label)}: ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)} · ${escapeHtml(order.fecha)} a las ${escapeHtml(order.hora)}</small></div><div class="row-actions"><a class="detail-button" href="${orderWhatsAppUrl(order)}" target="_blank" rel="noopener">WhatsApp</a><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-dismiss-alert="${order.id}" type="button">Entendido</button></div></article>`;
   }).join("");

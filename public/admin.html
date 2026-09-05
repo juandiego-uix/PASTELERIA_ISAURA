@@ -33,7 +33,7 @@
     <section class="metrics" id="metrics" aria-label="Resumen"></section>
     <section id="alerts" class="alerts" aria-live="polite"></section>
     <section class="analytics-grid" aria-label="Analítica financiera"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Caja</p><h2>Flujo mensual</h2></div></div><canvas id="cashflow-chart" height="130"></canvas></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Cobros</p><h2>Estados de pago</h2></div></div><canvas id="payment-chart" height="130"></canvas></article></section>
-    <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button></nav>
+    <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button><button class="tab" data-tab="inventory" type="button">Inventario</button></nav>
 
     <section id="orders-panel" class="panel">
       <div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><button class="primary" id="new-order" type="button">+ Nuevo pedido</button></div>
@@ -43,7 +43,11 @@
     <section id="products-panel" class="panel" hidden>
       <div class="panel-heading"><div><p class="eyebrow">Inventario visible</p><h2>Productos</h2></div><button class="primary" id="new-product" type="button">+ Añadir producto</button></div>
       <div class="admin-products" id="products-list"></div>
-      <div class="inventory-block"><div class="panel-heading"><div><p class="eyebrow">Materia prima</p><h2>Inventario y alertas</h2></div></div><div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Stock</th><th>Mínimo</th><th>Unidad</th></tr></thead><tbody id="inventory-table"></tbody></table></div></div>
+    </section>
+
+    <section id="inventory-panel" class="panel" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">Materia prima</p><h2>Inventario</h2></div><button class="primary" id="new-inventory" type="button">+ Añadir ingrediente</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Stock actual</th><th>Stock mínimo</th><th>Unidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="inventory-table"></tbody></table></div>
     </section>
   </main>
 
@@ -66,6 +70,15 @@
       <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Añadir producto</h2></div><button class="close" type="button" data-close="product-dialog" aria-label="Cerrar">×</button></div>
       <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label>Precio<input name="precio" type="number" min="0" step="0.01" value="0" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="product-dialog">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="inventory-dialog" class="modal">
+    <form id="inventory-form" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">Materia prima</p><h2 id="inventory-dialog-title">Añadir ingrediente</h2></div><button class="close" type="button" data-close="inventory-dialog" aria-label="Cerrar">×</button></div>
+      <input type="hidden" name="id">
+      <div class="form-grid"><label class="wide">Ingrediente<input name="ingrediente" maxlength="120" required></label><label>Stock actual<input name="stock_actual" type="number" min="0" step="0.001" required></label><label>Stock mínimo<input name="stock_minimo" type="number" min="0" step="0.001" required></label><label class="wide">Unidad de medida<input name="unidad" maxlength="30" placeholder="kg, unidad, litro" required></label></div>
+      <div class="dialog-actions"><button class="secondary" type="button" data-close="inventory-dialog">Cancelar</button><button class="primary" type="submit">Guardar ingrediente</button></div>
     </form>
   </dialog>
 

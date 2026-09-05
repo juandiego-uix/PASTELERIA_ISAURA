@@ -143,6 +143,28 @@ def _product_payload(payload):
     return fields
 
 
+def _inventory_payload(payload):
+    ingrediente = _text(payload, "ingrediente", 120)
+    unidad = _text(payload, "unidad", 30)
+    try:
+        stock_actual = float(payload.get("stock_actual", 0))
+        stock_minimo = float(payload.get("stock_minimo", 0))
+    except (TypeError, ValueError):
+        raise ValueError("El stock debe ser numérico")
+    if stock_actual < 0 or stock_minimo < 0:
+        raise ValueError("El stock no puede ser negativo")
+    fields = {
+        "ingrediente": ingrediente,
+        "stock_actual": stock_actual,
+        "unidad": unidad,
+        "stock_minimo": stock_minimo,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if payload.get("id"):
+        fields["id"] = int(payload["id"])
+    return fields
+
+
 @app.errorhandler(Exception)
 def handle_unexpected(error):
     app.logger.exception("Error no controlado", exc_info=error)
@@ -383,6 +405,33 @@ def admin_inventory():
     try:
         result = get_supabase().table("insumos").select("*").order("stock_actual").execute()
         return jsonify({"data": result.data or []})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.get("/api/insumos")
+@require_admin
+def get_inventory():
+    try:
+        result = get_supabase().table("insumos").select("*").order("ingrediente").execute()
+        return jsonify({"data": result.data or []})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.post("/api/insumos")
+@require_admin
+def save_inventory():
+    try:
+        payload = _inventory_payload(request.get_json(silent=True) or {})
+        client = get_supabase()
+        if payload.get("id"):
+            result = client.table("insumos").update(payload).eq("id", payload["id"]).execute()
+        else:
+            result = client.table("insumos").upsert(payload, on_conflict="ingrediente").execute()
+        return jsonify({"data": result.data[0] if result.data else None}), 201
+    except (KeyError, TypeError, ValueError) as error:
+        return error_response(str(error))
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

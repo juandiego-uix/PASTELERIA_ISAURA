@@ -6,6 +6,7 @@ let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-
 let csrfToken = "";
 let cashflowChart;
 let paymentChart;
+let deferredInstallPrompt;
 
 function showToast(message) {
   const toast = select("#toast");
@@ -146,7 +147,11 @@ async function loadDashboard() {
   catch (error) { showToast(error.message); }
 }
 
-async function showAdminPanel() { select("#login-container").style.display = "none"; select("#admin-view").hidden = false; try { csrfToken = (await api("/api/auth/csrf")).token; await loadDashboard(); } catch (error) { showToast(error.message); } }
+async function showAdminPanel() { select("#login-container").style.display = "none"; select("#admin-view").hidden = false; select("#install-dashboard").hidden = false; try { csrfToken = (await api("/api/auth/csrf")).token; await loadDashboard(); } catch (error) { showToast(error.message); } }
+
+window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredInstallPrompt = event; const button = select("#install-dashboard"); if (button) button.hidden = false; });
+select("#install-dashboard").addEventListener("click", async () => { if (!deferredInstallPrompt) { showToast("En iPhone: pulsa Compartir y luego Añadir a pantalla de inicio."); return; } deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; select("#install-dashboard").hidden = true; });
+window.addEventListener("appinstalled", () => { const button = select("#install-dashboard"); if (button) button.hidden = true; });
 
 function showOrderDetails(order) {
   const days = daysUntil(order.fecha);
@@ -205,6 +210,8 @@ select("#login-form").addEventListener("submit", async (event) => {
 
 async function restoreSession() { try { if ((await api("/api/auth/session")).success) showAdminPanel(); } catch { /* El login permanece visible. */ } }
 restoreSession();
+
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/admin-sw.js", { scope: "/admin.html" }));
 
 select("#logout").addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { localStorage.clear(); window.location.replace("/admin.html"); } });
 select("#download-report").addEventListener("click", downloadMonthlyReport);

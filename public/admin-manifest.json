@@ -1,0 +1,12 @@
+{
+  "name": "Isaura Cerpa - Dashboard",
+  "short_name": "Isaura Admin",
+  "lang": "es-CO",
+  "start_url": "/admin.html",
+  "scope": "/admin.html",
+  "display": "standalone",
+  "background_color": "#f4f5f0",
+  "theme_color": "#27352f",
+  "description": "Panel privado de gestión de Isaura Cerpa.",
+  "icons": [{ "src": "/uploads/Gemini_Generated_Image_i3dgegi3dgegi3dg.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
+}

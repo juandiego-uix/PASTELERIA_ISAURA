@@ -107,6 +107,7 @@ h2 { font-size: 30px; }
 .header-actions { display: flex; align-items: center; gap: 18px; }
 .header-actions a, .header-actions button { border: 0; background: none; color: var(--ink); cursor: pointer; font: inherit; text-decoration: none; }
 .header-actions .secondary { border: 1px solid var(--line); background: var(--paper); }
+.header-actions #install-dashboard { border-color: var(--rust); color: var(--rust); }
 
 .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
 .analytics-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin: 18px 0 28px; }

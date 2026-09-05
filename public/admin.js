@@ -1,6 +1,7 @@
 const select = (selector) => document.querySelector(selector);
 let dashboard = { orders: [], products: [], metrics: {} };
 let notifiedOrders = new Set(JSON.parse(localStorage.getItem("isaura-alerted-orders") || "[]"));
+let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-alerts") || "[]"));
 
 function showToast(message) {
   const toast = select("#toast");
@@ -58,7 +59,8 @@ function renderAlerts() {
   select("#alerts").innerHTML = alerts.map((order) => {
     const days = daysUntil(order.fecha);
     const label = days < 0 ? "Entrega vencida" : days === 0 ? "Entrega hoy" : `Faltan ${days} día${days === 1 ? "" : "s"}`;
-    return `<article class="alert"><div><strong>${escapeHtml(label)}: ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)} · ${escapeHtml(order.fecha)} a las ${escapeHtml(order.hora)}</small></div><button class="detail-button" data-detail="${order.id}">Ver detalles</button></article>`;
+    if (dismissedAlerts.has(String(order.id))) return "";
+    return `<article class="alert"><div><strong>${escapeHtml(label)}: ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)} · ${escapeHtml(order.fecha)} a las ${escapeHtml(order.hora)}</small></div><div class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-dismiss-alert="${order.id}" type="button">Entendido</button></div></article>`;
   }).join("");
   alerts.forEach((order) => {
     const days = daysUntil(order.fecha);
@@ -79,7 +81,7 @@ function renderDashboard() {
     <div class="metric"><span>Productos publicados</span><strong>${dashboard.products.length}</strong></div>`;
   select("#orders-table").innerHTML = dashboard.orders.map((order) => {
     const days = daysUntil(order.fecha);
-    const warning = order.estado !== "Entregado" && days <= 3 ? "warning" : "";
+    const warning = order.estado !== "Entregado" && days <= 2 ? "warning" : "";
     return `<tr>
       <td class="delivery-date ${warning}"><strong>${escapeHtml(order.fecha)}</strong><br><small>${escapeHtml(order.hora)}</small></td>
       <td><strong>${escapeHtml(order.nombre_cliente)}</strong><br><small>${escapeHtml(order.contacto)}</small></td>
@@ -97,7 +99,7 @@ async function loadDashboard() {
   catch (error) { showToast(error.message); }
 }
 
-function showAdminPanel() { select("#login-view").hidden = true; select("#admin-view").hidden = false; loadDashboard(); }
+function showAdminPanel() { select("#login-container").style.display = "none"; select("#admin-view").hidden = false; loadDashboard(); }
 
 function showOrderDetails(order) {
   const days = daysUntil(order.fecha);
@@ -125,7 +127,7 @@ select("#login-form").addEventListener("submit", async (event) => {
   const button = form.querySelector("button[type=submit]");
   button.disabled = true;
   try {
-    const result = await api("/api/auth/login", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+    const result = await api("/api/login", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) });
     if (result.success !== true) throw new Error(result.error || "Credenciales no válidas");
     window.location.replace("/admin.html?view=dashboard");
   } catch (error) { select("#login-error").textContent = error.message; button.disabled = false; }
@@ -134,7 +136,7 @@ select("#login-form").addEventListener("submit", async (event) => {
 async function restoreSession() { try { if ((await api("/api/auth/session")).success) showAdminPanel(); } catch { /* El login permanece visible. */ } }
 restoreSession();
 
-select("#logout").addEventListener("click", () => { window.location.replace("/admin.html"); });
+select("#logout").addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { localStorage.clear(); window.location.replace("/admin.html"); } });
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.close)));
 document.querySelectorAll("dialog").forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(modal.id); }));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") document.querySelectorAll("dialog[open]").forEach((modal) => closeModal(modal.id)); });
@@ -146,9 +148,9 @@ select("#new-product").addEventListener("click", () => openModal("product-dialog
 select("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/orders", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) }); dashboard.orders.push(result.data); form.reset(); closeModal("order-dialog", false); renderDashboard(); showToast("Pedido guardado"); } catch (error) { showToast(error.message); } });
 select("#product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/products", { method: "POST", body: new FormData(form) }); dashboard.products.unshift(result.data); form.reset(); closeModal("product-dialog", false); renderDashboard(); showToast("Producto guardado"); } catch (error) { showToast(error.message); } });
 
-select("#edit-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/admin/orders/${id}`, { method: "PATCH", body: JSON.stringify(payload) }); const index = dashboard.orders.findIndex((order) => String(order.id) === id); if (index >= 0) dashboard.orders[index] = { ...dashboard.orders[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-order-dialog", false); renderDashboard(); showToast("Pedido actualizado"); } catch (error) { showToast(error.message); } });
-select("#edit-product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/admin/products/${id}`, { method: "PATCH", body: JSON.stringify(payload) }); const index = dashboard.products.findIndex((product) => String(product.id) === id); if (index >= 0) dashboard.products[index] = { ...dashboard.products[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-product-dialog", false); renderDashboard(); showToast("Producto actualizado"); } catch (error) { showToast(error.message); } });
+select("#edit-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/pedidos/${id}`, { method: "PUT", body: JSON.stringify(payload) }); const index = dashboard.orders.findIndex((order) => String(order.id) === id); if (index >= 0) dashboard.orders[index] = { ...dashboard.orders[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-order-dialog", false); renderDashboard(); showToast("Pedido actualizado"); } catch (error) { showToast(error.message); } });
+select("#edit-product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/productos/${id}`, { method: "PUT", body: JSON.stringify(payload) }); const index = dashboard.products.findIndex((product) => String(product.id) === id); if (index >= 0) dashboard.products[index] = { ...dashboard.products[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-product-dialog", false); renderDashboard(); showToast("Producto actualizado"); } catch (error) { showToast(error.message); } });
 
 select("#orders-table").addEventListener("change", async (event) => { if (!event.target.dataset.status) return; try { await api(`/api/admin/orders/${event.target.dataset.status}`, { method: "PATCH", body: JSON.stringify({ estado: event.target.value }) }); const order = dashboard.orders.find((item) => String(item.id) === event.target.dataset.status); if (order) order.estado = event.target.value; renderDashboard(); showToast("Estado actualizado"); } catch (error) { showToast(error.message); } });
 
-document.addEventListener("click", async (event) => { const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });
+document.addEventListener("click", async (event) => { const dismissId = event.target.dataset.dismissAlert; if (dismissId) { dismissedAlerts.add(String(dismissId)); localStorage.setItem("isaura-dismissed-alerts", JSON.stringify([...dismissedAlerts])); renderAlerts(); return; } const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });

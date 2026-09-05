@@ -187,6 +187,7 @@ def categories():
 
 
 @app.get("/api/citas")
+@app.get("/api/pedidos")
 def citas():
     try:
         result = get_supabase().table("citas").select("id,nombre_cliente,contacto,fecha,hora,descripcion,estado,precio,tipo_pago,abono,origen,created_at").order("fecha").order("hora").execute()
@@ -197,6 +198,7 @@ def citas():
 
 @app.post("/api/orders")
 @app.post("/api/citas")
+@app.post("/api/pedidos")
 def create_order():
     try:
         payload = request.get_json(silent=True) or {}
@@ -210,6 +212,7 @@ def create_order():
         return database_error(error)
 
 
+@app.post("/api/login")
 @app.post("/api/auth/login")
 def login():
     payload = request.get_json(silent=True) or {}
@@ -224,6 +227,13 @@ def login():
     session.clear()
     session["admin"] = True
     session["admin_authenticated"] = True
+    return jsonify({"success": True}), 200
+
+
+@app.post("/api/logout")
+@app.get("/api/logout")
+def logout():
+    session.clear()
     return jsonify({"success": True}), 200
 
 
@@ -270,6 +280,7 @@ def admin_create_order():
         return database_error(error)
 
 
+@app.put("/api/pedidos/<int:order_id>")
 @app.patch("/api/admin/orders/<int:order_id>")
 @require_admin
 def admin_update_order(order_id):
@@ -321,6 +332,7 @@ def admin_create_product():
         return database_error(error)
 
 
+@app.put("/api/productos/<int:product_id>")
 @app.patch("/api/admin/products/<int:product_id>")
 @require_admin
 def admin_update_product(product_id):

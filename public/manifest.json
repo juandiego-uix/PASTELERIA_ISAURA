@@ -1,0 +1,11 @@
+{
+  "name": "Isaura Cerpa - Repostería Artesanal",
+  "short_name": "Isaura Cerpa",
+  "lang": "es-CO",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f3eb",
+  "theme_color": "#27352f",
+  "description": "Catálogo y pedidos de Isaura Cerpa.",
+  "icons": [{ "src": "/uploads/Gemini_Generated_Image_i3dgegi3dgegi3dg.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
+}

@@ -109,6 +109,10 @@ h2 { font-size: 30px; }
 .header-actions .secondary { border: 1px solid var(--line); background: var(--paper); }
 
 .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
+.analytics-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin: 18px 0 28px; }
+.analytics-grid .panel { min-height: 280px; }
+.inventory-block { margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--line); }
+.low-stock td { color: var(--danger); font-weight: 700; background: #fff4f0; }
 .metric, .panel { padding: 24px; border: 1px solid var(--line); background: var(--paper); }
 .metric strong { display: block; margin-top: 12px; font: 38px Fraunces, serif; }
 .metric span { color: var(--muted); }
@@ -164,6 +168,7 @@ td small { color: var(--muted); }
 	.admin-header, .panel-heading { display: block; }
 	.header-actions { flex-wrap: wrap; margin-top: 18px; }
 	.metrics { grid-template-columns: 1fr; }
+	.analytics-grid { grid-template-columns: 1fr; }
 	.admin-products { grid-template-columns: repeat(2, 1fr); }
 	.panel-heading .primary { margin-top: 18px; }
 	.alert { display: block; }

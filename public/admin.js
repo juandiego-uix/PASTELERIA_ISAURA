@@ -3,6 +3,8 @@ const BUSINESS_WHATSAPP = "573215457378";
 let dashboard = { orders: [], products: [], metrics: {} };
 let notifiedOrders = new Set(JSON.parse(localStorage.getItem("isaura-alerted-orders") || "[]"));
 let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-alerts") || "[]"));
+let cashflowChart;
+let paymentChart;
 
 function showToast(message) {
   const toast = select("#toast");
@@ -104,7 +106,18 @@ function renderDashboard() {
     </tr>`;
   }).join("") || `<tr><td colspan="5">No hay pedidos todavía.</td></tr>`;
   select("#products-list").innerHTML = dashboard.products.map((product) => `<article class="admin-product"><img src="${product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`}" alt="${escapeHtml(product.nombre)}"><strong>${escapeHtml(product.nombre)}</strong><small>${escapeHtml(product.categoria)}</small><div class="row-actions"><button class="detail-button" data-edit-product="${product.id}" type="button">Editar</button><button class="danger" data-delete-product="${product.id}" type="button">Eliminar</button></div></article>`).join("") || "<p>No hay productos.</p>";
+  select("#inventory-table").innerHTML = (dashboard.inventory || []).map((item) => `<tr class="${Number(item.stock_actual) <= Number(item.stock_minimo) ? "low-stock" : ""}"><td>${escapeHtml(item.ingrediente)}</td><td>${Number(item.stock_actual).toLocaleString("es-CO")}</td><td>${Number(item.stock_minimo).toLocaleString("es-CO")}</td><td>${escapeHtml(item.unidad)}</td></tr>`).join("") || `<tr><td colspan="4">No hay insumos registrados.</td></tr>`;
+  renderCharts();
   renderAlerts();
+}
+
+function renderCharts() {
+  if (!window.Chart) return;
+  cashflowChart?.destroy(); paymentChart?.destroy();
+  const labels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  cashflowChart = new Chart(select("#cashflow-chart"), { type: "bar", data: { labels, datasets: [{ label: "Abonos", data: dashboard.metrics.monthly_cashflow || [], backgroundColor: "#bd6e4d" }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+  const payments = dashboard.metrics.payment_distribution || {};
+  paymentChart = new Chart(select("#payment-chart"), { type: "doughnut", data: { labels: Object.keys(payments), datasets: [{ data: Object.values(payments), backgroundColor: ["#27352f", "#bd6e4d", "#a9b9a1"] }] }, options: { plugins: { legend: { position: "bottom" } } } });
 }
 
 async function loadDashboard() {
@@ -118,6 +131,7 @@ function showOrderDetails(order) {
   const days = daysUntil(order.fecha);
   select("#order-details").innerHTML = `<div class="details-grid"><div class="detail-item"><strong>Cliente</strong><span>${escapeHtml(order.nombre_cliente)}</span></div><div class="detail-item"><strong>Contacto</strong><span>${escapeHtml(order.contacto)}</span></div><div class="detail-item"><strong>Entrega</strong><span>${escapeHtml(order.fecha)} · ${escapeHtml(order.hora)} (${days < 0 ? "vencido" : `faltan ${days} días`})</span></div><div class="detail-item"><strong>Estado del pedido</strong><span>${escapeHtml(order.estado)}</span></div><div class="detail-item"><strong>Estado de pago</strong><span>${escapeHtml(order.tipo_pago)}</span></div><div class="detail-item"><strong>Importes</strong><span>Abono: ${money(order.abono)} · Total: ${money(order.precio)}</span></div><div class="detail-item detail-full"><strong>Descripción</strong><span>${escapeHtml(order.descripcion)}</span></div></div>`;
   select("#whatsapp-alert").href = orderWhatsAppUrl(order);
+  select("#receipt-link").href = `/api/admin/orders/${order.id}/receipt.pdf`;
   openModal("details-dialog");
 }
 

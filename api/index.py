@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import io
 import os
 import secrets
 from datetime import date, datetime, timezone
@@ -7,7 +8,7 @@ from functools import wraps
 from pathlib import Path
 
 import httpx
-from flask import Flask, jsonify, request, session
+from flask import Flask, jsonify, request, send_file, session
 from dotenv import load_dotenv
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
@@ -113,6 +114,15 @@ def _order_payload(payload, partial=False):
         if value < 0:
             raise ValueError(f"{key} no puede ser negativo")
         fields[key] = value
+    if "items" in payload:
+        if not isinstance(payload["items"], list) or len(payload["items"]) > 50:
+            raise ValueError("items debe ser una lista de máximo 50 productos")
+        fields["items"] = [{
+            "id": int(item["id"]),
+            "nombre": _text(item, "nombre", 120),
+            "cantidad": max(1, min(int(item.get("cantidad", 1)), 99)),
+            "precio": max(0, float(item.get("precio", 0))),
+        } for item in payload["items"]]
     if "fecha" in fields:
         date.fromisoformat(fields["fecha"])
     if "hora" in fields:
@@ -123,11 +133,14 @@ def _order_payload(payload, partial=False):
 
 
 def _product_payload(payload):
-    return {
+    fields = {
         "nombre": _text(payload, "nombre", 120),
         "categoria": _text(payload, "categoria", 80),
         "descripcion": _text(payload, "descripcion", 1000, required=False),
     }
+    if "precio" in payload:
+        fields["precio"] = max(0, float(payload.get("precio", 0)))
+    return fields
 
 
 @app.errorhandler(Exception)
@@ -170,7 +183,7 @@ def api_root():
 @app.get("/api/productos")
 def products():
     try:
-        result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,created_at").order("id", desc=True).execute()
+        result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,precio,created_at").order("id", desc=True).execute()
         return jsonify({"data": [with_image_url(product) for product in (result.data or [])]})
     except (APIError, RuntimeError) as error:
         return database_error(error)
@@ -190,7 +203,7 @@ def categories():
 @app.get("/api/pedidos")
 def citas():
     try:
-        result = get_supabase().table("citas").select("id,nombre_cliente,contacto,fecha,hora,descripcion,estado,precio,tipo_pago,abono,origen,created_at").order("fecha").order("hora").execute()
+        result = get_supabase().table("citas").select("id,nombre_cliente,contacto,fecha,hora,descripcion,estado,precio,tipo_pago,abono,origen,items,created_at").order("fecha").order("hora").execute()
         return jsonify({"data": result.data or []})
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
@@ -250,6 +263,7 @@ def dashboard():
         client = get_supabase()
         orders = client.table("citas").select("*").order("fecha").order("hora").execute().data or []
         products_data = [with_image_url(product) for product in (client.table("productos").select("*").order("id", desc=True).execute().data or [])]
+        inventory = client.table("insumos").select("*").order("stock_actual").execute().data or []
         year = date.today().year
         delivered_by_month = [sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{month:02d}")) for month in range(1, 13)]
         today = date.today().isoformat()
@@ -260,7 +274,10 @@ def dashboard():
                 "pending_today": sum(1 for order in orders if order.get("estado") == "Pendiente" and order.get("fecha") == today),
                 "delivered_month": sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{date.today().month:02d}")),
                 "monthly_delivered": delivered_by_month,
+                "monthly_cashflow": [sum(float(order.get("abono") or 0) for order in orders if str(order.get("created_at", "")).startswith(f"{year}-{month:02d}")) for month in range(1, 13)],
+                "payment_distribution": {payment: sum(1 for order in orders if order.get("tipo_pago") == payment) for payment in ALLOWED_PAYMENTS},
             },
+            "inventory": inventory,
         })
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
@@ -356,6 +373,61 @@ def admin_delete_product(product_id):
             client.storage.from_("productos").remove([product["imagen"]])
         client.table("productos").delete().eq("id", product_id).execute()
         return ("", 204)
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.get("/api/admin/inventory")
+@require_admin
+def admin_inventory():
+    try:
+        result = get_supabase().table("insumos").select("*").order("stock_actual").execute()
+        return jsonify({"data": result.data or []})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.post("/api/admin/messages/proximity")
+@require_admin
+def send_proximity_messages():
+    provider = os.environ.get("MESSAGING_PROVIDER", "generic")
+    webhook = os.environ.get("MESSAGING_WEBHOOK_URL")
+    if not webhook:
+        return error_response("Configura MESSAGING_WEBHOOK_URL para activar la mensajería", 503)
+    try:
+        orders = get_supabase().table("citas").select("*").neq("estado", "Entregado").execute().data or []
+        upcoming = [order for order in orders if 0 <= (date.fromisoformat(str(order["fecha"])) - date.today()).days <= 2]
+        response = httpx.post(webhook, json={"provider": provider, "orders": upcoming}, timeout=10)
+        response.raise_for_status()
+        return jsonify({"sent": len(upcoming), "provider": provider})
+    except (APIError, RuntimeError, httpx.HTTPError, ValueError) as error:
+        return database_error(error)
+
+
+@app.get("/api/admin/orders/<int:order_id>/receipt.pdf")
+@require_admin
+def order_receipt(order_id):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        order = get_supabase().table("citas").select("*").eq("id", order_id).single().execute().data
+        if not order:
+            return error_response("Pedido no encontrado", 404)
+        buffer = io.BytesIO()
+        document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=18 * mm, leftMargin=18 * mm, topMargin=18 * mm, bottomMargin=18 * mm)
+        styles = getSampleStyleSheet()
+        items = order.get("items") or [{"nombre": order.get("descripcion", "Pedido artesanal"), "cantidad": 1, "precio": order.get("precio", 0)}]
+        rows = [["Producto", "Cantidad", "Importe"]] + [[str(item.get("nombre")), str(item.get("cantidad", 1)), f"${float(item.get('precio', 0)) * int(item.get('cantidad', 1)):,.0f}"] for item in items]
+        story = [Paragraph("ISAURA CERPA", styles["Title"]), Paragraph("Repostería artesanal · Comprobante de pedido", styles["Normal"]), Spacer(1, 12)]
+        story.append(Paragraph(f"Cliente: {order['nombre_cliente']}<br/>Contacto: {order['contacto']}<br/>Entrega: {order['fecha']} · {order['hora']}<br/>Estado: {order['estado']} · Pago: {order['tipo_pago']}", styles["BodyText"]))
+        story += [Spacer(1, 14), Table(rows, colWidths=[110 * mm, 25 * mm, 35 * mm], style=TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#27352f")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d9ddd5")), ("ALIGN", (1, 1), (-1, -1), "RIGHT"), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)])), Spacer(1, 12), Paragraph(f"Abono: ${float(order.get('abono', 0)):,.0f}<br/><b>Total: ${float(order.get('precio', 0)):,.0f}</b>", styles["BodyText"])]
+        document.build(story)
+        buffer.seek(0)
+        return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"recibo-isaura-{order_id}.pdf")
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

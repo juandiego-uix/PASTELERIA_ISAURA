@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
   <main id="login-container" class="login-view">
@@ -31,6 +32,7 @@
 
     <section class="metrics" id="metrics" aria-label="Resumen"></section>
     <section id="alerts" class="alerts" aria-live="polite"></section>
+    <section class="analytics-grid" aria-label="Analítica financiera"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Caja</p><h2>Flujo mensual</h2></div></div><canvas id="cashflow-chart" height="130"></canvas></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Cobros</p><h2>Estados de pago</h2></div></div><canvas id="payment-chart" height="130"></canvas></article></section>
     <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button></nav>
 
     <section id="orders-panel" class="panel">
@@ -41,6 +43,7 @@
     <section id="products-panel" class="panel" hidden>
       <div class="panel-heading"><div><p class="eyebrow">Inventario visible</p><h2>Productos</h2></div><button class="primary" id="new-product" type="button">+ Añadir producto</button></div>
       <div class="admin-products" id="products-list"></div>
+      <div class="inventory-block"><div class="panel-heading"><div><p class="eyebrow">Materia prima</p><h2>Inventario y alertas</h2></div></div><div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Stock</th><th>Mínimo</th><th>Unidad</th></tr></thead><tbody id="inventory-table"></tbody></table></div></div>
     </section>
   </main>
 
@@ -61,7 +64,7 @@
   <dialog id="product-dialog" class="modal">
     <form id="product-form" method="dialog" enctype="multipart/form-data">
       <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Añadir producto</h2></div><button class="close" type="button" data-close="product-dialog" aria-label="Cerrar">×</button></div>
-      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
+      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label>Precio<input name="precio" type="number" min="0" step="0.01" value="0" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="product-dialog">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
     </form>
   </dialog>
@@ -79,7 +82,7 @@
     <form id="edit-product-form" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Editar producto</h2></div><button class="close" type="button" data-close="edit-product-dialog" aria-label="Cerrar">×</button></div>
       <input type="hidden" name="id">
-      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label></div>
+      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label>Precio<input name="precio" type="number" min="0" step="0.01" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="edit-product-dialog">Cancelar</button><button class="primary" type="submit">Guardar cambios</button></div>
     </form>
   </dialog>
@@ -87,7 +90,7 @@
   <dialog id="details-dialog" class="modal details-modal">
     <div class="dialog-head"><div><p class="eyebrow">Ficha del pedido</p><h2>Detalles completos</h2></div><button class="close" type="button" data-close="details-dialog" aria-label="Cerrar">×</button></div>
     <div id="order-details"></div>
-    <div class="dialog-actions"><button class="secondary" type="button" data-close="details-dialog">Cerrar</button><a id="whatsapp-alert" class="primary" target="_blank" rel="noopener">Enviar alerta por WhatsApp ↗</a></div>
+    <div class="dialog-actions"><button class="secondary" type="button" data-close="details-dialog">Cerrar</button><a id="receipt-link" class="secondary" target="_blank" rel="noopener">Descargar recibo PDF</a><a id="whatsapp-alert" class="primary" target="_blank" rel="noopener">Enviar alerta por WhatsApp ↗</a></div>
   </dialog>
   <div class="toast" id="toast" role="status"></div>
   <script type="module" src="admin.js"></script>

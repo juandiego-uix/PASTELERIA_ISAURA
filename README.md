@@ -20,13 +20,21 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 
 - Catálogo dinámico con búsqueda por nombre y categoría.
 - Selección de favoritos persistida en el navegador.
-- Registro de pedidos en Supabase y continuación del flujo en WhatsApp.
-- Panel administrativo protegido para gestionar productos, pedidos y estados.
-- Métricas de pedidos pendientes, entregas mensuales y catálogo publicado.
+- Carrito persistente, checkout con ítems y precios, y PWA instalable.
+- Métricas financieras con Chart.js, estados de pago e inventario de insumos.
+- Recibos PDF y webhook preparado para Twilio, Meta Cloud API o un gateway propio.
 - Estados de carga, errores visibles y validación en cliente y servidor.
 - Diseño mobile-first con HTML semántico, CSS Grid/Flexbox y tipografía editorial.
+│   ├── manifest.json        # Configuración PWA
+│   ├── sw.js                # Caché offline del app shell
 
+| `GET` | `/api/admin/orders/:id/receipt.pdf` | Admin | Descargar comprobante PDF |
+| `POST` | `/api/admin/messages/proximity` | Admin | Enviar próximos pedidos al webhook configurado |
 ## Stack tecnológico
+
+### Inventario y mensajería
+
+Ejecuta las ampliaciones de [`supabase/schema.sql`](supabase/schema.sql) para crear `insumos`, `producto_insumos`, precios e ítems de pedido. Al registrar un pedido con `items`, un trigger de Postgres descuenta las cantidades de la receta y rechaza el pedido si no existe stock suficiente. Configura `MESSAGING_WEBHOOK_URL` para que el endpoint de proximidad entregue los pedidos próximos a tu integración de Twilio, Meta Cloud API o automatización interna.
 
 | Capa | Tecnología |
 | --- | --- |

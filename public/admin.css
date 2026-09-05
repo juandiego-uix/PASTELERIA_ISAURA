@@ -113,7 +113,7 @@ h2 { font-size: 30px; }
 .metric strong { display: block; margin-top: 12px; font: 38px Fraunces, serif; }
 .metric span { color: var(--muted); }
 
-.alerts { display: grid; gap: 10px; margin-bottom: 28px; }
+.alerts { position: sticky; top: 16px; z-index: 8; display: grid; gap: 10px; margin-bottom: 28px; }
 .alert { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border: 1px solid #e4c577; background: #fff4d8; color: var(--warning); }
 .alert strong { color: var(--ink); }
 .alert small { display: block; margin-top: 4px; color: #776338; }

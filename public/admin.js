@@ -1,4 +1,5 @@
 const select = (selector) => document.querySelector(selector);
+const BUSINESS_WHATSAPP = "573215457378";
 let dashboard = { orders: [], products: [], metrics: {} };
 let notifiedOrders = new Set(JSON.parse(localStorage.getItem("isaura-alerted-orders") || "[]"));
 let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-alerts") || "[]"));
@@ -26,6 +27,18 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>\'"]/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;",
   }[character]));
+}
+
+function money(value) {
+  return `$${Number(value || 0).toLocaleString("es-CO")}`;
+}
+
+function orderWhatsAppMessage(order) {
+  return `Hola Isaura,\n\nRecordatorio de pedido próximo\n\nCliente: ${order.nombre_cliente}\nContacto: ${order.contacto}\nFecha de entrega: ${order.fecha}\nHora de entrega: ${order.hora}\nEstado del pedido: ${order.estado}\nEstado de pago: ${order.tipo_pago}\nAbono: ${money(order.abono)}\nTotal: ${money(order.precio)}\nDescripción: ${order.descripcion}\n\nPor favor preparar este pedido con anticipación.\n\nIsaura Cerpa - Repostería Artesanal`;
+}
+
+function orderWhatsAppUrl(order) {
+  return `https://wa.me/${BUSINESS_WHATSAPP}?text=${encodeURIComponent(orderWhatsAppMessage(order))}`;
 }
 
 function openModal(id) {
@@ -60,7 +73,7 @@ function renderAlerts() {
     const days = daysUntil(order.fecha);
     const label = days < 0 ? "Entrega vencida" : days === 0 ? "Entrega hoy" : `Faltan ${days} día${days === 1 ? "" : "s"}`;
     if (dismissedAlerts.has(String(order.id))) return "";
-    return `<article class="alert"><div><strong>${escapeHtml(label)}: ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)} · ${escapeHtml(order.fecha)} a las ${escapeHtml(order.hora)}</small></div><div class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-dismiss-alert="${order.id}" type="button">Entendido</button></div></article>`;
+    return `<article class="alert"><div><strong>${escapeHtml(label)}: ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)} · ${escapeHtml(order.fecha)} a las ${escapeHtml(order.hora)}</small></div><div class="row-actions"><a class="detail-button" href="${orderWhatsAppUrl(order)}" target="_blank" rel="noopener">WhatsApp</a><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-dismiss-alert="${order.id}" type="button">Entendido</button></div></article>`;
   }).join("");
   alerts.forEach((order) => {
     const days = daysUntil(order.fecha);
@@ -103,10 +116,25 @@ function showAdminPanel() { select("#login-container").style.display = "none"; s
 
 function showOrderDetails(order) {
   const days = daysUntil(order.fecha);
-  const message = `Hola ${order.nombre_cliente}, te recordamos tu pedido en Isaura Cerpa.\n\nDetalle: ${order.descripcion}\nFecha: ${order.fecha}\nHora: ${order.hora}\nEstado: ${order.estado}\nPago: ${order.tipo_pago}\nAbono: $${Number(order.abono || 0).toLocaleString("es-CO")}\nTotal: $${Number(order.precio || 0).toLocaleString("es-CO")}`;
-  select("#order-details").innerHTML = `<div class="details-grid"><div class="detail-item"><strong>Cliente</strong><span>${escapeHtml(order.nombre_cliente)}</span></div><div class="detail-item"><strong>Contacto</strong><span>${escapeHtml(order.contacto)}</span></div><div class="detail-item"><strong>Entrega</strong><span>${escapeHtml(order.fecha)} · ${escapeHtml(order.hora)} (${days < 0 ? "vencido" : `faltan ${days} días`})</span></div><div class="detail-item"><strong>Estado del pedido</strong><span>${escapeHtml(order.estado)}</span></div><div class="detail-item"><strong>Estado de pago</strong><span>${escapeHtml(order.tipo_pago)}</span></div><div class="detail-item"><strong>Importes</strong><span>Abono: $${Number(order.abono || 0).toLocaleString("es-CO")} · Total: $${Number(order.precio || 0).toLocaleString("es-CO")}</span></div><div class="detail-item detail-full"><strong>Descripción</strong><span>${escapeHtml(order.descripcion)}</span></div></div>`;
-  select("#whatsapp-alert").href = `https://wa.me/${String(order.contacto || "").replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
+  select("#order-details").innerHTML = `<div class="details-grid"><div class="detail-item"><strong>Cliente</strong><span>${escapeHtml(order.nombre_cliente)}</span></div><div class="detail-item"><strong>Contacto</strong><span>${escapeHtml(order.contacto)}</span></div><div class="detail-item"><strong>Entrega</strong><span>${escapeHtml(order.fecha)} · ${escapeHtml(order.hora)} (${days < 0 ? "vencido" : `faltan ${days} días`})</span></div><div class="detail-item"><strong>Estado del pedido</strong><span>${escapeHtml(order.estado)}</span></div><div class="detail-item"><strong>Estado de pago</strong><span>${escapeHtml(order.tipo_pago)}</span></div><div class="detail-item"><strong>Importes</strong><span>Abono: ${money(order.abono)} · Total: ${money(order.precio)}</span></div><div class="detail-item detail-full"><strong>Descripción</strong><span>${escapeHtml(order.descripcion)}</span></div></div>`;
+  select("#whatsapp-alert").href = orderWhatsAppUrl(order);
   openModal("details-dialog");
+}
+
+function downloadMonthlyReport() {
+  const month = new Date().toISOString().slice(0, 7);
+  const monthOrders = dashboard.orders.filter((order) => String(order.fecha || "").startsWith(month));
+  const totalSales = monthOrders.reduce((sum, order) => sum + Number(order.precio || 0), 0);
+  const totalDeposits = monthOrders.reduce((sum, order) => sum + Number(order.abono || 0), 0);
+  const delivered = monthOrders.filter((order) => order.estado === "Entregado").length;
+  const rows = monthOrders.map((order) => `<tr><td>${escapeHtml(order.fecha)}</td><td>${escapeHtml(order.hora)}</td><td>${escapeHtml(order.nombre_cliente)}</td><td>${escapeHtml(order.descripcion)}</td><td>${escapeHtml(order.estado)}</td><td>${escapeHtml(order.tipo_pago)}</td><td>${money(order.abono)}</td><td>${money(order.precio)}</td></tr>`).join("");
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe mensual ${month}</title><style>body{font:14px Arial;color:#27352f;margin:40px}h1{font:28px Georgia}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #d9ddd5;padding:8px;text-align:left}th{background:#eef0eb}.summary{display:flex;gap:28px;padding:16px;background:#f7f3eb}.summary strong{display:block;font-size:20px;margin-top:5px}@media print{body{margin:18px}}</style></head><body><h1>Isaura Cerpa - Informe mensual</h1><p>Periodo: ${month}</p><section class="summary"><div>Pedidos<strong>${monthOrders.length}</strong></div><div>Ventas<strong>${money(totalSales)}</strong></div><div>Abonos<strong>${money(totalDeposits)}</strong></div><div>Entregados<strong>${delivered}</strong></div></section><table><thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Descripción</th><th>Estado</th><th>Pago</th><th>Abono</th><th>Total</th></tr></thead><tbody>${rows || "<tr><td colspan='8'>No hay pedidos en este periodo.</td></tr>"}</tbody></table></body></html>`;
+  const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `informe-isaura-${month}.html`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function openOrderEditor(order) {
@@ -137,6 +165,7 @@ async function restoreSession() { try { if ((await api("/api/auth/session")).suc
 restoreSession();
 
 select("#logout").addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { localStorage.clear(); window.location.replace("/admin.html"); } });
+select("#download-report").addEventListener("click", downloadMonthlyReport);
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.close)));
 document.querySelectorAll("dialog").forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(modal.id); }));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") document.querySelectorAll("dialog[open]").forEach((modal) => closeModal(modal.id)); });

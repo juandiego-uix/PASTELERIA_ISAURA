@@ -216,6 +216,75 @@ La clave service role solo se utiliza dentro de la función Python. El navegador
 
 Para Meta WhatsApp Cloud API necesitas una aplicación de Meta Business, un token de acceso, el `Phone Number ID` y una plantilla aprobada. Como alternativa, configura `MESSAGING_PROVIDER=twilio` con las variables de Twilio. Si no configuras ningún proveedor, el enlace manual de WhatsApp de la tienda sigue funcionando.
 
+## Pendientes de configuración en producción
+
+El código ya incluye estas integraciones, pero requieren credenciales y configuración externa. No introduzcas tokens en Git ni en archivos públicos.
+
+### Dashboard instalable como PWA
+
+La tienda pública ya incluye `manifest.json` y `sw.js`. El panel administrativo funciona en móvil y tablet mediante:
+
+```text
+/admin.html
+```
+
+Para instalar la tienda, abre la página pública en Chrome, Edge o Safari y usa **Instalar aplicación** o **Añadir a pantalla de inicio**. El dashboard aún se usa como página segura del panel; antes de convertirlo en una segunda aplicación instalable conviene separar su manifest y su caché para no mezclar sesión administrativa con la tienda pública.
+
+### Automatización oficial de WhatsApp con Meta
+
+La integración usa WhatsApp Cloud API oficial. No uses contraseñas personales, claves de Supabase ni tokens de Sentry en estas variables.
+
+1. Entra en [Meta for Developers](https://developers.facebook.com/) y crea una aplicación de tipo **Business**.
+2. Añade el producto **WhatsApp**.
+3. En **WhatsApp → API Setup**, copia el token de acceso y el `Phone Number ID`.
+4. En **WhatsApp Manager → Message Templates**, crea y espera la aprobación de una plantilla llamada `pedido_actualizacion`.
+5. En Vercel, abre **Settings → Environment Variables** y agrega para **Production**:
+
+```env
+MESSAGING_PROVIDER=meta
+META_ACCESS_TOKEN=token_privado_de_meta
+META_PHONE_NUMBER_ID=id_del_numero_de_whatsapp
+META_TEMPLATE_NAME=pedido_actualizacion
+```
+
+6. Guarda los cambios y ejecuta **Redeploy**.
+7. Cambia un pedido a `Confirmado`, `En producción`, `Listo` o `Entregado` desde el panel.
+8. Revisa `pedido_mensajes` en Supabase. El registro debe quedar como `enviado`; si falla, quedará como `fallido` con el motivo.
+
+La plantilla debe aceptar dos parámetros de texto en este orden:
+
+1. Estado del pedido.
+2. Fecha de entrega.
+
+Un texto compatible sería:
+
+```text
+Hola, tu pedido de Isaura Cerpa está {{1}}. La entrega está programada para {{2}}.
+```
+
+El número del cliente debe incluir código de país, por ejemplo `573001112233`. Meta puede exigir que el cliente haya iniciado una conversación o que el mensaje use una plantilla aprobada fuera de la ventana de atención de 24 horas.
+
+### Variables adicionales recomendadas
+
+```env
+SENTRY_DSN=dsn_del_proyecto_sentry
+RATELIMIT_STORAGE_URI=redis://usuario:contraseña@host:6379/0
+MESSAGING_WEBHOOK_SECRET=secreto_para_firmar_webhooks
+```
+
+### Lista final de verificación
+
+- [ ] Ejecutar `supabase/schema.sql` en el proyecto correcto.
+- [ ] Crear usuarios en Supabase Auth y asignar sus roles en `public.perfiles`.
+- [ ] Configurar `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_KEY` y `SUPABASE_AUTH_ENABLED=true` en Vercel.
+- [ ] Configurar `ADMIN_SESSION_SECRET` y Redis para rate limiting.
+- [ ] Configurar `SENTRY_DSN` y comprobar que llegue un evento de prueba.
+- [ ] Crear y aprobar la plantilla `pedido_actualizacion` en Meta.
+- [ ] Configurar las cuatro variables de Meta en Vercel.
+- [ ] Hacer Redeploy después de modificar variables.
+- [ ] Probar una transición de pedido y revisar `pedido_mensajes`.
+- [ ] Probar tienda, dashboard, inventario, producción, finanzas y tracking desde teléfono y tablet.
+
 ### Migrar imágenes existentes
 
 Para cargar las imágenes históricas de `public/uploads/` al bucket `productos` y crear sus registros iniciales:

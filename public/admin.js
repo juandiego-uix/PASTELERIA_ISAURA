@@ -53,7 +53,7 @@ function requestNotifications() {
 function renderAlerts() {
   const alerts = dashboard.orders.filter((order) => {
     const days = daysUntil(order.fecha);
-    return order.estado !== "Entregado" && days <= 3;
+    return order.estado !== "Entregado" && days <= 2;
   });
   select("#alerts").innerHTML = alerts.map((order) => {
     const days = daysUntil(order.fecha);
@@ -62,7 +62,7 @@ function renderAlerts() {
   }).join("");
   alerts.forEach((order) => {
     const days = daysUntil(order.fecha);
-    if (days <= 3 && !notifiedOrders.has(order.id)) {
+    if (days <= 2 && !notifiedOrders.has(order.id)) {
       requestNotifications();
       if ("Notification" in window && Notification.permission === "granted") new Notification("Pedido próximo", { body: `${order.nombre_cliente}: entrega ${order.fecha}` });
       notifiedOrders.add(order.id);
@@ -85,10 +85,10 @@ function renderDashboard() {
       <td><strong>${escapeHtml(order.nombre_cliente)}</strong><br><small>${escapeHtml(order.contacto)}</small></td>
       <td><span class="payment-badge">${escapeHtml(order.tipo_pago)}</span><br><small>Abono: $${Number(order.abono || 0).toLocaleString("es-CO")} · Total: $${Number(order.precio || 0).toLocaleString("es-CO")}</small></td>
       <td><select class="status-select" data-status="${order.id}">${["Pendiente", "En Preparación", "Entregado"].map((status) => `<option ${status === order.estado ? "selected" : ""}>${status}</option>`).join("")}</select></td>
-      <td class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="danger" data-delete-order="${order.id}" type="button">Eliminar</button></td>
+      <td class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-edit-order="${order.id}" type="button">Editar</button><button class="danger" data-delete-order="${order.id}" type="button">Eliminar</button></td>
     </tr>`;
   }).join("") || `<tr><td colspan="5">No hay pedidos todavía.</td></tr>`;
-  select("#products-list").innerHTML = dashboard.products.map((product) => `<article class="admin-product"><img src="${product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`}" alt="${escapeHtml(product.nombre)}"><strong>${escapeHtml(product.nombre)}</strong><small>${escapeHtml(product.categoria)}</small><button class="danger" data-delete-product="${product.id}" type="button">Eliminar</button></article>`).join("") || "<p>No hay productos.</p>";
+  select("#products-list").innerHTML = dashboard.products.map((product) => `<article class="admin-product"><img src="${product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`}" alt="${escapeHtml(product.nombre)}"><strong>${escapeHtml(product.nombre)}</strong><small>${escapeHtml(product.categoria)}</small><div class="row-actions"><button class="detail-button" data-edit-product="${product.id}" type="button">Editar</button><button class="danger" data-delete-product="${product.id}" type="button">Eliminar</button></div></article>`).join("") || "<p>No hay productos.</p>";
   renderAlerts();
 }
 
@@ -105,6 +105,18 @@ function showOrderDetails(order) {
   select("#order-details").innerHTML = `<div class="details-grid"><div class="detail-item"><strong>Cliente</strong><span>${escapeHtml(order.nombre_cliente)}</span></div><div class="detail-item"><strong>Contacto</strong><span>${escapeHtml(order.contacto)}</span></div><div class="detail-item"><strong>Entrega</strong><span>${escapeHtml(order.fecha)} · ${escapeHtml(order.hora)} (${days < 0 ? "vencido" : `faltan ${days} días`})</span></div><div class="detail-item"><strong>Estado del pedido</strong><span>${escapeHtml(order.estado)}</span></div><div class="detail-item"><strong>Estado de pago</strong><span>${escapeHtml(order.tipo_pago)}</span></div><div class="detail-item"><strong>Importes</strong><span>Abono: $${Number(order.abono || 0).toLocaleString("es-CO")} · Total: $${Number(order.precio || 0).toLocaleString("es-CO")}</span></div><div class="detail-item detail-full"><strong>Descripción</strong><span>${escapeHtml(order.descripcion)}</span></div></div>`;
   select("#whatsapp-alert").href = `https://wa.me/${String(order.contacto || "").replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
   openModal("details-dialog");
+}
+
+function openOrderEditor(order) {
+  const form = select("#edit-order-form");
+  Object.entries(order).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value ?? ""; });
+  openModal("edit-order-dialog");
+}
+
+function openProductEditor(product) {
+  const form = select("#edit-product-form");
+  Object.entries(product).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value ?? ""; });
+  openModal("edit-product-dialog");
 }
 
 select("#login-form").addEventListener("submit", async (event) => {
@@ -134,6 +146,9 @@ select("#new-product").addEventListener("click", () => openModal("product-dialog
 select("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/orders", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) }); dashboard.orders.push(result.data); form.reset(); closeModal("order-dialog", false); renderDashboard(); showToast("Pedido guardado"); } catch (error) { showToast(error.message); } });
 select("#product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/products", { method: "POST", body: new FormData(form) }); dashboard.products.unshift(result.data); form.reset(); closeModal("product-dialog", false); renderDashboard(); showToast("Producto guardado"); } catch (error) { showToast(error.message); } });
 
+select("#edit-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/admin/orders/${id}`, { method: "PATCH", body: JSON.stringify(payload) }); const index = dashboard.orders.findIndex((order) => String(order.id) === id); if (index >= 0) dashboard.orders[index] = { ...dashboard.orders[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-order-dialog", false); renderDashboard(); showToast("Pedido actualizado"); } catch (error) { showToast(error.message); } });
+select("#edit-product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value; try { const payload = Object.fromEntries(new FormData(form)); delete payload.id; const result = await api(`/api/admin/products/${id}`, { method: "PATCH", body: JSON.stringify(payload) }); const index = dashboard.products.findIndex((product) => String(product.id) === id); if (index >= 0) dashboard.products[index] = { ...dashboard.products[index], ...(result.data || payload), id: Number(id) }; form.reset(); closeModal("edit-product-dialog", false); renderDashboard(); showToast("Producto actualizado"); } catch (error) { showToast(error.message); } });
+
 select("#orders-table").addEventListener("change", async (event) => { if (!event.target.dataset.status) return; try { await api(`/api/admin/orders/${event.target.dataset.status}`, { method: "PATCH", body: JSON.stringify({ estado: event.target.value }) }); const order = dashboard.orders.find((item) => String(item.id) === event.target.dataset.status); if (order) order.estado = event.target.value; renderDashboard(); showToast("Estado actualizado"); } catch (error) { showToast(error.message); } });
 
-document.addEventListener("click", async (event) => { const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });
+document.addEventListener("click", async (event) => { const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });

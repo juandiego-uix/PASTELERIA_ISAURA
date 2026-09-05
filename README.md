@@ -45,6 +45,10 @@ Ejecuta las ampliaciones de [`supabase/schema.sql`](supabase/schema.sql) para cr
 
 Para activar Supabase Auth establece `SUPABASE_AUTH_ENABLED=true`, crea usuarios en Supabase Auth y registra su rol en `public.perfiles` (`administrador`, `produccion`, `ventas` o `solo_lectura`). El modo manual hasheado queda disponible únicamente como transición local cuando la bandera está desactivada.
 
+### Observabilidad y mensajería
+
+Configura `SENTRY_DSN` en Vercel para recibir errores y trazas del backend. Para WhatsApp usa `MESSAGING_PROVIDER=meta` con `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID` y una plantilla aprobada; para Twilio usa `MESSAGING_PROVIDER=twilio` con sus credenciales. El modo `webhook` requiere `MESSAGING_WEBHOOK_URL` y `MESSAGING_WEBHOOK_SECRET`. Todas las actualizaciones de pedidos quedan registradas en `pedido_mensajes`.
+
 | Capa | Tecnología |
 | --- | --- |
 | Backend | Python 3.11+, Flask 3.1 |

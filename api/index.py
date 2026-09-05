@@ -9,6 +9,7 @@ from functools import wraps
 from pathlib import Path
 
 import httpx
+import sentry_sdk
 from flask import Flask, jsonify, request, send_file, session
 from dotenv import load_dotenv
 from flask_limiter import Limiter
@@ -21,6 +22,12 @@ from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    send_default_pii=False,
+    traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
+    environment=os.environ.get("VERCEL_ENV", os.environ.get("APP_ENV", "production")),
+)
 ALLOWED_STATUSES = {"Pendiente", "Confirmado", "En producción", "Listo", "Entregado", "Cancelado"}
 ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 

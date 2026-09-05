@@ -58,11 +58,14 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
             fields["notas_internas"] = str(payload["notas_internas"])[:2000]
         result = get_supabase().table("citas").update(fields).eq("id", order_id).execute()
         if state in {"Confirmado", "En producción", "Listo", "Entregado"} and result.data:
+            message_record = {"pedido_id": order_id, "canal": "whatsapp", "plantilla": "pedido_actualizacion", "estado": "fallido"}
             try:
                 provider_id = send_order_message(result.data[0])
-                get_supabase().table("pedido_mensajes").insert({"pedido_id": order_id, "canal": "whatsapp", "plantilla": "pedido_actualizacion", "proveedor_id": provider_id, "estado": "enviado", "enviado_at": datetime.now(timezone.utc).isoformat()}).execute()
+                message_record.update({"proveedor_id": provider_id, "estado": "enviado", "enviado_at": datetime.now(timezone.utc).isoformat()})
             except Exception as error:
                 app.logger.warning("No se pudo enviar actualización de pedido: %s", error)
+                message_record["error"] = str(error)[:500]
+            get_supabase().table("pedido_mensajes").insert(message_record).execute()
         return jsonify({"data": result.data[0] if result.data else None})
 
     @app.get("/api/admin/production/today")

@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import os
 from urllib.parse import quote
 
@@ -39,4 +42,12 @@ def send_order_message(order):
         )
         response.raise_for_status()
         return response.json().get("messages", [{}])[0].get("id", "")
-    return ""
+    webhook = os.environ.get("MESSAGING_WEBHOOK_URL")
+    secret = os.environ.get("MESSAGING_WEBHOOK_SECRET")
+    if provider in {"webhook", "generic"} and webhook and secret:
+        body = json.dumps({"event": "order.updated", "order": order, "message": message}, separators=(",", ":"), ensure_ascii=False).encode()
+        signature = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        response = httpx.post(webhook, content=body, headers={"Content-Type": "application/json", "X-Webhook-Signature": f"sha256={signature}"}, timeout=10)
+        response.raise_for_status()
+        return response.headers.get("X-Message-Id", "webhook-delivered")
+    raise RuntimeError("Proveedor de mensajería no configurado")

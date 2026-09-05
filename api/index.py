@@ -236,21 +236,24 @@ def auth_session():
 @app.get("/api/admin/dashboard")
 @require_admin
 def dashboard():
-    client = get_supabase()
-    orders = client.table("citas").select("*").order("fecha").order("hora").execute().data or []
-    products_data = [with_image_url(product) for product in (client.table("productos").select("*").order("id", desc=True).execute().data or [])]
-    year = date.today().year
-    delivered_by_month = [sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{month:02d}")) for month in range(1, 13)]
-    today = date.today().isoformat()
-    return jsonify({
-        "orders": orders,
-        "products": products_data,
-        "metrics": {
-            "pending_today": sum(1 for order in orders if order.get("estado") == "Pendiente" and order.get("fecha") == today),
-            "delivered_month": sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{date.today().month:02d}")),
-            "monthly_delivered": delivered_by_month,
-        },
-    })
+    try:
+        client = get_supabase()
+        orders = client.table("citas").select("*").order("fecha").order("hora").execute().data or []
+        products_data = [with_image_url(product) for product in (client.table("productos").select("*").order("id", desc=True).execute().data or [])]
+        year = date.today().year
+        delivered_by_month = [sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{month:02d}")) for month in range(1, 13)]
+        today = date.today().isoformat()
+        return jsonify({
+            "orders": orders,
+            "products": products_data,
+            "metrics": {
+                "pending_today": sum(1 for order in orders if order.get("estado") == "Pendiente" and order.get("fecha") == today),
+                "delivered_month": sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{date.today().month:02d}")),
+                "monthly_delivered": delivered_by_month,
+            },
+        })
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.post("/api/admin/orders")
@@ -263,6 +266,8 @@ def admin_create_order():
         return jsonify({"data": result.data[0]}), 201
     except ValueError as error:
         return error_response(str(error))
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.patch("/api/admin/orders/<int:order_id>")
@@ -281,13 +286,18 @@ def admin_update_order(order_id):
         return jsonify({"data": result.data[0] if result.data else None})
     except ValueError as error:
         return error_response(str(error))
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.delete("/api/admin/orders/<int:order_id>")
 @require_admin
 def admin_delete_order(order_id):
-    get_supabase().table("citas").delete().eq("id", order_id).execute()
-    return ("", 204)
+    try:
+        get_supabase().table("citas").delete().eq("id", order_id).execute()
+        return ("", 204)
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.post("/api/admin/products")
@@ -307,6 +317,8 @@ def admin_create_product():
         return jsonify({"data": result.data[0]}), 201
     except ValueError as error:
         return error_response(str(error))
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.patch("/api/admin/products/<int:product_id>")
@@ -318,17 +330,22 @@ def admin_update_product(product_id):
         return jsonify({"data": result.data[0] if result.data else None})
     except ValueError as error:
         return error_response(str(error))
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 @app.delete("/api/admin/products/<int:product_id>")
 @require_admin
 def admin_delete_product(product_id):
-    client = get_supabase()
-    product = client.table("productos").select("imagen").eq("id", product_id).single().execute().data
-    if product and product.get("imagen"):
-        client.storage.from_("productos").remove([product["imagen"]])
-    client.table("productos").delete().eq("id", product_id).execute()
-    return ("", 204)
+    try:
+        client = get_supabase()
+        product = client.table("productos").select("imagen").eq("id", product_id).single().execute().data
+        if product and product.get("imagen") and not str(product["imagen"]).startswith(("http://", "https://")):
+            client.storage.from_("productos").remove([product["imagen"]])
+        client.table("productos").delete().eq("id", product_id).execute()
+        return ("", 204)
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
 
 
 

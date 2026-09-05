@@ -1,1 +1,77 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Administración | Isaura Cerpa</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/admin.css"></head><body><main id="login-view" class="login-view"><div class="login-box"><p class="eyebrow">Isaura Cerpa</p><h1>Panel de administración</h1><p>Gestiona pedidos y catálogo desde un solo lugar.</p><form id="login-form"><label>Usuario<input name="username" autocomplete="username" required></label><label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">Entrar</button><p class="form-error" id="login-error"></p></form></div></main><main id="admin-view" class="admin-view" hidden><header class="admin-header"><div><p class="eyebrow">Espacio de trabajo</p><h1>Buenos días, Isaura</h1></div><div class="header-actions"><a href="/">Ver tienda ↗</a><button id="logout">Cerrar sesión</button></div></header><section class="metrics" id="metrics"></section><nav class="tabs"><button class="tab active" data-tab="orders">Pedidos</button><button class="tab" data-tab="products">Catálogo</button></nav><section id="orders-panel" class="panel"><div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><button class="primary" id="new-order">+ Nuevo pedido</button></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Detalle</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody id="orders-table"></tbody></table></div></section><section id="products-panel" class="panel" hidden><div class="panel-heading"><div><p class="eyebrow">Inventario visible</p><h2>Productos</h2></div><button class="primary" id="new-product">+ Añadir producto</button></div><div class="admin-products" id="products-list"></div></section></main><dialog id="order-dialog"><form method="dialog" id="order-form"><div class="dialog-head"><h2>Nuevo pedido</h2><button value="cancel" class="close">×</button></div><div class="form-grid"><label>Cliente<input name="nombre_cliente" required></label><label>Contacto<input name="contacto" required></label><label>Fecha<input type="date" name="fecha" required></label><label>Hora<input type="time" name="hora" required></label><label>Precio<input type="number" min="0" step="0.01" name="precio" required></label><label>Abono<input type="number" min="0" step="0.01" name="abono" value="0" required></label><label class="wide">Tipo de pago<select name="tipo_pago"><option>Pagado Completo</option><option>Mitad / Abono</option><option>Pendiente de Pago</option></select></label><label class="wide">Descripción<textarea name="descripcion" required></textarea></label></div><button class="primary" type="submit">Guardar pedido</button></form></dialog><dialog id="product-dialog"><form method="dialog" id="product-form" enctype="multipart/form-data"><div class="dialog-head"><h2>Nuevo producto</h2><button value="cancel" class="close">×</button></div><div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div><button class="primary" type="submit">Guardar producto</button></form></dialog><div class="toast" id="toast"></div><script type="module" src="/admin.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración | Isaura Cerpa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <main id="login-view" class="login-view">
+    <section class="login-box">
+      <p class="eyebrow">Isaura Cerpa</p>
+      <h1>Panel de administración</h1>
+      <p>Gestiona pedidos y catálogo desde un solo lugar.</p>
+      <form id="login-form" autocomplete="off">
+        <label>Usuario<input name="username" autocomplete="username" required></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary full-width" type="submit">Entrar</button>
+        <p class="form-error" id="login-error" role="alert"></p>
+      </form>
+    </section>
+  </main>
+
+  <main id="admin-view" class="admin-view" hidden>
+    <header class="admin-header">
+      <div><p class="eyebrow">Espacio de trabajo</p><h1>Buenos días, Isaura</h1></div>
+      <div class="header-actions"><a href="/">Ver tienda ↗</a><button id="logout" type="button">Cerrar sesión</button></div>
+    </header>
+
+    <section class="metrics" id="metrics" aria-label="Resumen"></section>
+    <section id="alerts" class="alerts" aria-live="polite"></section>
+    <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button></nav>
+
+    <section id="orders-panel" class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><button class="primary" id="new-order" type="button">+ Nuevo pedido</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Entrega</th><th>Cliente</th><th>Pago</th><th>Progreso</th><th>Acciones</th></tr></thead><tbody id="orders-table"></tbody></table></div>
+    </section>
+
+    <section id="products-panel" class="panel" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">Inventario visible</p><h2>Productos</h2></div><button class="primary" id="new-product" type="button">+ Añadir producto</button></div>
+      <div class="admin-products" id="products-list"></div>
+    </section>
+  </main>
+
+  <dialog id="order-dialog" class="modal">
+    <form id="order-form" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">Agenda</p><h2>Nuevo pedido</h2></div><button class="close" type="button" data-close="order-dialog" aria-label="Cerrar">×</button></div>
+      <div class="form-grid">
+        <label>Cliente<input name="nombre_cliente" required></label><label>Contacto<input name="contacto" required></label>
+        <label>Fecha de entrega<input type="date" name="fecha" required></label><label>Hora<input type="time" name="hora" required></label>
+        <label>Precio<input type="number" min="0" step="0.01" name="precio" required></label><label>Abono<input type="number" min="0" step="0.01" name="abono" value="0" required></label>
+        <label>Estado de pago<select name="tipo_pago"><option>Pendiente de Pago</option><option>Mitad / Abono</option><option>Pagado Completo</option></select></label>
+        <label class="wide">Descripción<textarea name="descripcion" required></textarea></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary" type="button" data-close="order-dialog">Cancelar</button><button class="primary" type="submit">Guardar pedido</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="product-dialog" class="modal">
+    <form id="product-form" method="dialog" enctype="multipart/form-data">
+      <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Añadir producto</h2></div><button class="close" type="button" data-close="product-dialog" aria-label="Cerrar">×</button></div>
+      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
+      <div class="dialog-actions"><button class="secondary" type="button" data-close="product-dialog">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="details-dialog" class="modal details-modal">
+    <div class="dialog-head"><div><p class="eyebrow">Ficha del pedido</p><h2>Detalles completos</h2></div><button class="close" type="button" data-close="details-dialog" aria-label="Cerrar">×</button></div>
+    <div id="order-details"></div>
+    <div class="dialog-actions"><button class="secondary" type="button" data-close="details-dialog">Cerrar</button><a id="whatsapp-alert" class="primary" target="_blank" rel="noopener">Enviar alerta por WhatsApp ↗</a></div>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

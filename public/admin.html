@@ -16,7 +16,7 @@
       <h1>Panel de administración</h1>
       <p>Gestiona pedidos y catálogo desde un solo lugar.</p>
       <form id="login-form" autocomplete="off">
-        <label>Usuario<input name="username" autocomplete="username" required></label>
+        <label>Correo o usuario<input name="username" type="text" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="primary full-width" type="submit">Entrar</button>
         <p class="form-error" id="login-error" role="alert"></p>
@@ -33,7 +33,7 @@
     <section class="metrics" id="metrics" aria-label="Resumen"></section>
     <section id="alerts" class="alerts" aria-live="polite"></section>
     <section class="analytics-grid" aria-label="Analítica financiera"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Caja</p><h2>Flujo mensual</h2></div></div><canvas id="cashflow-chart" height="130"></canvas></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">Cobros</p><h2>Estados de pago</h2></div></div><canvas id="payment-chart" height="130"></canvas></article></section>
-    <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button><button class="tab" data-tab="inventory" type="button">Inventario</button></nav>
+    <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button><button class="tab" data-tab="inventory" type="button">Inventario</button><button class="tab" data-tab="production" type="button">Producción</button><button class="tab" data-tab="finance" type="button">Finanzas</button></nav>
 
     <section id="orders-panel" class="panel">
       <div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><button class="primary" id="new-order" type="button">+ Nuevo pedido</button></div>
@@ -48,6 +48,16 @@
     <section id="inventory-panel" class="panel" hidden>
       <div class="panel-heading"><div><p class="eyebrow">Materia prima</p><h2>Inventario</h2></div><button class="primary" id="new-inventory" type="button">+ Añadir ingrediente</button></div>
       <div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Stock actual</th><th>Stock mínimo</th><th>Unidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="inventory-table"></tbody></table></div>
+    </section>
+
+    <section id="production-panel" class="panel" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">Operación</p><h2>Producción de hoy</h2></div><button class="secondary" id="reload-production" type="button">Actualizar</button></div>
+      <div id="production-list" class="production-list"></div>
+    </section>
+
+    <section id="finance-panel" class="panel" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">Control financiero</p><h2>Resumen del negocio</h2></div><a class="secondary" href="/api/admin/reports/orders.csv">Exportar pedidos CSV</a></div>
+      <div id="finance-summary" class="metrics finance-summary"></div>
     </section>
   </main>
 
@@ -86,7 +96,7 @@
     <form id="edit-order-form" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">Agenda</p><h2>Editar pedido</h2></div><button class="close" type="button" data-close="edit-order-dialog" aria-label="Cerrar">×</button></div>
       <input type="hidden" name="id">
-      <div class="form-grid"><label>Cliente<input name="nombre_cliente" required></label><label>Contacto<input name="contacto" required></label><label>Fecha de entrega<input type="date" name="fecha" required></label><label>Hora<input type="time" name="hora" required></label><label>Precio<input type="number" min="0" step="0.01" name="precio" required></label><label>Abono<input type="number" min="0" step="0.01" name="abono" required></label><label>Estado del pedido<select name="estado"><option>Pendiente</option><option>En Preparación</option><option>Entregado</option></select></label><label>Estado de pago<select name="tipo_pago"><option>Pendiente de Pago</option><option>Mitad / Abono</option><option>Pagado Completo</option></select></label><label class="wide">Descripción<textarea name="descripcion" required></textarea></label></div>
+      <div class="form-grid"><label>Cliente<input name="nombre_cliente" required></label><label>Contacto<input name="contacto" required></label><label>Fecha de entrega<input type="date" name="fecha" required></label><label>Hora<input type="time" name="hora" required></label><label>Precio<input type="number" min="0" step="0.01" name="precio" required></label><label>Abono<input type="number" min="0" step="0.01" name="abono" required></label><label>Estado del pedido<select name="estado"><option>Pendiente</option><option>Confirmado</option><option>En producción</option><option>Listo</option><option>Entregado</option><option>Cancelado</option></select></label><label>Estado de pago<select name="tipo_pago"><option>Pendiente de Pago</option><option>Mitad / Abono</option><option>Pagado Completo</option></select></label><label class="wide">Descripción<textarea name="descripcion" required></textarea></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="edit-order-dialog">Cancelar</button><button class="primary" type="submit">Guardar cambios</button></div>
     </form>
   </dialog>

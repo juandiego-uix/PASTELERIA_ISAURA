@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#27352f">
+  <title>Seguimiento de pedido | Isaura Cerpa</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="tracking-page">
+    <p class="eyebrow">Isaura Cerpa</p>
+    <h1>Seguimiento de pedido</h1>
+    <p class="hero-text">Consulta el estado de tu pedido con el código recibido.</p>
+    <form id="tracking-form" class="checkout-form"><label>Código de seguimiento<input name="token" required pattern="[0-9a-fA-F-]{36}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label><button class="button button-dark" type="submit">Consultar pedido</button></form>
+    <section id="tracking-result" class="tracking-result" aria-live="polite"></section>
+  </main>
+  <script type="module" src="/track.js"></script>
+</body>
+</html>

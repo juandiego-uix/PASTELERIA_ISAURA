@@ -21,7 +21,7 @@ from werkzeug.security import check_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-ALLOWED_STATUSES = {"Pendiente", "En Preparación", "Entregado"}
+ALLOWED_STATUSES = {"Pendiente", "Confirmado", "En producción", "Listo", "Entregado", "Cancelado"}
 ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 
 app = Flask(__name__, static_folder=None)
@@ -93,6 +93,19 @@ def require_admin(handler):
     return wrapped
 
 
+def role_required(*allowed_roles):
+    def decorator(handler):
+        @wraps(handler)
+        @require_admin
+        def wrapped(*args, **kwargs):
+            role = session.get("role", "administrador")
+            if role not in allowed_roles:
+                return error_response("No tienes permisos para esta operación", 403)
+            return handler(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def _admin_token(secret: str) -> str:
     issued_at = str(int(datetime.now(timezone.utc).timestamp()))
     signature = hmac.new(secret.encode(), f"isaura-admin:{issued_at}".encode(), hashlib.sha256).hexdigest()
@@ -144,6 +157,10 @@ def _order_payload(payload, partial=False):
             "id": int(item["id"]),
             "cantidad": max(1, min(int(item.get("cantidad", 1)), 99)),
         } for item in payload["items"]]
+    if "personalizacion" in payload:
+        if not isinstance(payload["personalizacion"], dict) or len(str(payload["personalizacion"])) > 4000:
+            raise ValueError("La personalización no es válida")
+        fields["personalizacion"] = payload["personalizacion"]
     if "fecha" in fields:
         date.fromisoformat(fields["fecha"])
     if "hora" in fields:
@@ -182,6 +199,14 @@ def _product_payload(payload):
     }
     if "precio" in payload:
         fields["precio"] = max(0, float(payload.get("precio", 0)))
+    for key in ("destacado", "disponible"):
+        if key in payload:
+            fields[key] = bool(payload[key])
+    if "descuento_porcentaje" in payload:
+        discount = float(payload["descuento_porcentaje"])
+        if not 0 <= discount <= 100:
+            raise ValueError("El descuento debe estar entre 0 y 100")
+        fields["descuento_porcentaje"] = discount
     return fields
 
 
@@ -247,7 +272,7 @@ def api_root():
 @app.get("/api/productos")
 def products():
     try:
-        result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,precio,created_at").order("id", desc=True).execute()
+        result = get_supabase().table("productos").select("id,nombre,categoria,descripcion,imagen,precio,destacado,disponible,descuento_porcentaje,created_at").eq("disponible", True).order("id", desc=True).execute()
         return jsonify({"data": [with_image_url(product) for product in (result.data or [])]})
     except (APIError, RuntimeError) as error:
         return database_error(error)
@@ -300,6 +325,24 @@ def login():
     payload = request.get_json(silent=True) or {}
     username = str(payload.get("username", ""))
     password = str(payload.get("password", ""))
+    if os.environ.get("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
+        try:
+            auth_key = os.environ.get("SUPABASE_ANON_KEY")
+            if not auth_key:
+                return error_response("SUPABASE_ANON_KEY es obligatorio para Supabase Auth", 503)
+            auth_client = create_client(os.environ["SUPABASE_URL"], auth_key)
+            auth_result = auth_client.auth.sign_in_with_password({"email": username, "password": password})
+            user_id = str(auth_result.user.id)
+            profile = get_supabase().table("perfiles").select("rol,nombre").eq("id", user_id).single().execute().data or {}
+            session.clear()
+            session["admin"] = True
+            session["admin_authenticated"] = True
+            session["user_id"] = user_id
+            session["role"] = profile.get("rol", "solo_lectura")
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            return jsonify({"success": True, "role": session["role"]}), 200
+        except Exception:
+            return error_response("Credenciales de Supabase no válidas", 401)
     expected_user = os.environ.get("ADMIN_USERNAME")
     expected_hash = os.environ.get("ADMIN_PASSWORD_HASH")
     if not expected_user or not expected_hash:
@@ -309,6 +352,7 @@ def login():
     session.clear()
     session["admin"] = True
     session["admin_authenticated"] = True
+    session["role"] = "administrador"
     session["csrf_token"] = secrets.token_urlsafe(32)
     return jsonify({"success": True}), 200
 
@@ -544,6 +588,11 @@ def order_receipt(order_id):
         return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=f"recibo-isaura-{order_id}.pdf")
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
+
+
+from .erp import register_erp_routes
+
+register_erp_routes(app, get_supabase, require_admin, role_required)
 
 
 

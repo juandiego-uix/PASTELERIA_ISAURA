@@ -71,7 +71,7 @@ function requestNotifications() {
 function renderAlerts() {
   const alerts = dashboard.orders.filter((order) => {
     const days = daysUntil(order.fecha);
-    return order.estado !== "Entregado" && days >= 0 && days <= 2;
+    return !["Entregado", "Cancelado"].includes(order.estado) && days >= 0 && days <= 2;
   });
   select("#alerts").innerHTML = alerts.map((order) => {
     const days = daysUntil(order.fecha);
@@ -103,7 +103,7 @@ function renderDashboard() {
       <td class="delivery-date ${warning}"><strong>${escapeHtml(order.fecha)}</strong><br><small>${escapeHtml(order.hora)}</small></td>
       <td><strong>${escapeHtml(order.nombre_cliente)}</strong><br><small>${escapeHtml(order.contacto)}</small></td>
       <td><span class="payment-badge">${escapeHtml(order.tipo_pago)}</span><br><small>Abono: $${Number(order.abono || 0).toLocaleString("es-CO")} · Total: $${Number(order.precio || 0).toLocaleString("es-CO")}</small></td>
-      <td><select class="status-select" data-status="${order.id}">${["Pendiente", "En Preparación", "Entregado"].map((status) => `<option ${status === order.estado ? "selected" : ""}>${status}</option>`).join("")}</select></td>
+      <td><select class="status-select" data-status="${order.id}">${["Pendiente", "Confirmado", "En producción", "Listo", "Entregado", "Cancelado"].map((status) => `<option ${status === order.estado ? "selected" : ""}>${status}</option>`).join("")}</select></td>
       <td class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-edit-order="${order.id}" type="button">Editar</button><button class="danger" data-delete-order="${order.id}" type="button">Eliminar</button></td>
     </tr>`;
   }).join("") || `<tr><td colspan="5">No hay pedidos todavía.</td></tr>`;
@@ -123,6 +123,22 @@ function renderCharts() {
   cashflowChart = new Chart(select("#cashflow-chart"), { type: "bar", data: { labels, datasets: [{ label: "Abonos", data: dashboard.metrics.monthly_cashflow || [], backgroundColor: "#bd6e4d" }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
   const payments = dashboard.metrics.payment_distribution || {};
   paymentChart = new Chart(select("#payment-chart"), { type: "doughnut", data: { labels: Object.keys(payments), datasets: [{ data: Object.values(payments), backgroundColor: ["#27352f", "#bd6e4d", "#a9b9a1"] }] }, options: { plugins: { legend: { position: "bottom" } } } });
+}
+
+function renderProduction(orders) {
+  select("#production-list").innerHTML = orders.length ? orders.map((order) => `<article class="production-card"><div><strong>${escapeHtml(order.hora)} · ${escapeHtml(order.nombre_cliente)}</strong><small>${escapeHtml(order.descripcion)}</small></div><label><input type="checkbox" data-production-check="${order.id}"> Preparado</label><button class="detail-button" data-production-ready="${order.id}" type="button">Marcar listo</button></article>`).join("") : "<p class='status'>No hay pedidos para producción hoy.</p>";
+}
+
+function renderFinance(summary) {
+  select("#finance-summary").innerHTML = Object.entries({ "Ventas": summary.ventas, "Abonos": summary.abonos, "Por cobrar": summary.por_cobrar, "Gastos": summary.gastos, "Utilidad neta": summary.utilidad_neta }).map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${money(value)}</strong></div>`).join("");
+}
+
+async function loadProduction() {
+  try { const response = await api("/api/admin/production/today"); renderProduction(response.data || []); } catch (error) { showToast(error.message); }
+}
+
+async function loadFinance() {
+  try { const response = await api("/api/admin/reports/summary"); renderFinance(response.data || {}); } catch (error) { showToast(error.message); }
 }
 
 async function loadDashboard() {
@@ -196,10 +212,11 @@ document.querySelectorAll("[data-close]").forEach((button) => button.addEventLis
 document.querySelectorAll("dialog").forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(modal.id); }));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") document.querySelectorAll("dialog[open]").forEach((modal) => closeModal(modal.id)); });
 
-document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => { document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active")); tab.classList.add("active"); select("#orders-panel").hidden = tab.dataset.tab !== "orders"; select("#products-panel").hidden = tab.dataset.tab !== "products"; select("#inventory-panel").hidden = tab.dataset.tab !== "inventory"; }));
+document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => { document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active")); tab.classList.add("active"); ["orders", "products", "inventory", "production", "finance"].forEach((panel) => { select(`#${panel}-panel`).hidden = tab.dataset.tab !== panel; }); if (tab.dataset.tab === "production") loadProduction(); if (tab.dataset.tab === "finance") loadFinance(); }));
 select("#new-order").addEventListener("click", () => openModal("order-dialog"));
 select("#new-product").addEventListener("click", () => openModal("product-dialog"));
 select("#new-inventory").addEventListener("click", () => openInventoryEditor());
+select("#reload-production").addEventListener("click", loadProduction);
 
 select("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/orders", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) }); dashboard.orders.push(result.data); form.reset(); closeModal("order-dialog", false); renderDashboard(); showToast("Pedido guardado"); } catch (error) { showToast(error.message); } });
 select("#product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/products", { method: "POST", body: new FormData(form) }); dashboard.products.unshift(result.data); form.reset(); closeModal("product-dialog", false); renderDashboard(); showToast("Producto guardado"); } catch (error) { showToast(error.message); } });
@@ -210,4 +227,4 @@ select("#inventory-form").addEventListener("submit", async (event) => { event.pr
 
 select("#orders-table").addEventListener("change", async (event) => { if (!event.target.dataset.status) return; try { await api(`/api/admin/orders/${event.target.dataset.status}`, { method: "PATCH", body: JSON.stringify({ estado: event.target.value }) }); const order = dashboard.orders.find((item) => String(item.id) === event.target.dataset.status); if (order) order.estado = event.target.value; renderDashboard(); showToast("Estado actualizado"); } catch (error) { showToast(error.message); } });
 
-document.addEventListener("click", async (event) => { const dismissId = event.target.dataset.dismissAlert; if (dismissId) { dismissedAlerts.add(String(dismissId)); localStorage.setItem("isaura-dismissed-alerts", JSON.stringify([...dismissedAlerts])); renderAlerts(); return; } const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const editInventoryId = event.target.dataset.editInventory; if (editInventoryId) { const item = dashboard.inventory.find((entry) => String(entry.id) === editInventoryId); if (item) openInventoryEditor(item); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });
+document.addEventListener("click", async (event) => { const readyId = event.target.dataset.productionReady; if (readyId) { try { await api(`/api/admin/orders/${readyId}/lifecycle`, { method: "PATCH", body: JSON.stringify({ estado: "Listo" }) }); await loadProduction(); showToast("Pedido marcado como listo"); } catch (error) { showToast(error.message); } return; } const dismissId = event.target.dataset.dismissAlert; if (dismissId) { dismissedAlerts.add(String(dismissId)); localStorage.setItem("isaura-dismissed-alerts", JSON.stringify([...dismissedAlerts])); renderAlerts(); return; } const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const editInventoryId = event.target.dataset.editInventory; if (editInventoryId) { const item = dashboard.inventory.find((entry) => String(entry.id) === editInventoryId); if (item) openInventoryEditor(item); return; } const orderId = event.target.dataset.deleteOrder; const productId = event.target.dataset.deleteProduct; if (!orderId && !productId) return; if (!window.confirm("¿Eliminar este registro?")) return; try { const resource = orderId ? "orders" : "products"; await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); if (orderId) dashboard.orders = dashboard.orders.filter((item) => String(item.id) !== orderId); else dashboard.products = dashboard.products.filter((item) => String(item.id) !== productId); renderDashboard(); showToast("Registro eliminado"); } catch (error) { showToast(error.message); } });

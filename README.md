@@ -23,6 +23,7 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 - Carrito persistente, checkout con ítems y precios, y PWA instalable.
 - Métricas financieras con Chart.js, estados de pago e inventario de insumos.
 - Recibos PDF y webhook preparado para Twilio, Meta Cloud API o un gateway propio.
+- Roles operativos, producción diaria, seguimiento público, reportes financieros y trazabilidad de inventario.
 - Estados de carga, errores visibles y validación en cliente y servidor.
 - Diseño mobile-first con HTML semántico, CSS Grid/Flexbox y tipografía editorial.
 │   ├── manifest.json        # Configuración PWA
@@ -30,11 +31,19 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 
 | `GET` | `/api/admin/orders/:id/receipt.pdf` | Admin | Descargar comprobante PDF |
 | `POST` | `/api/admin/messages/proximity` | Admin | Enviar próximos pedidos al webhook configurado |
+| `GET` | `/api/track/:token` | Público | Seguimiento limitado del pedido |
+| `GET/PATCH` | `/api/admin/orders/:id/lifecycle` | Por rol | Ciclo operativo e historial |
+| `GET` | `/api/admin/production/today` | Producción | Cola de preparación del día |
+| `GET/POST` | `/api/admin/expenses` | Finanzas | Gastos operativos |
+| `GET` | `/api/admin/reports/summary` | Finanzas | Ventas, cobros, gastos y utilidad |
+| `GET` | `/api/admin/reports/orders.csv` | Admin/Ventas | Exportación de pedidos |
 ## Stack tecnológico
 
 ### Inventario y mensajería
 
 Ejecuta las ampliaciones de [`supabase/schema.sql`](supabase/schema.sql) para crear `insumos`, `producto_insumos`, precios e ítems de pedido. Al registrar un pedido con `items`, un trigger de Postgres descuenta las cantidades de la receta y rechaza el pedido si no existe stock suficiente. Configura `MESSAGING_WEBHOOK_URL` para que el endpoint de proximidad entregue los pedidos próximos a tu integración de Twilio, Meta Cloud API o automatización interna.
+
+Para activar Supabase Auth establece `SUPABASE_AUTH_ENABLED=true`, crea usuarios en Supabase Auth y registra su rol en `public.perfiles` (`administrador`, `produccion`, `ventas` o `solo_lectura`). El modo manual hasheado queda disponible únicamente como transición local cuando la bandera está desactivada.
 
 | Capa | Tecnología |
 | --- | --- |
@@ -55,6 +64,7 @@ ISAURA/
 ├── public/
 │   ├── index.html           # Tienda pública
 │   ├── app.js               # Catálogo, favoritos y pedidos
+│   ├── track.html / track.js # Seguimiento público de pedidos
 │   ├── admin.html           # Panel administrativo
 │   ├── admin.js             # Operaciones protegidas del panel
 │   ├── styles.css

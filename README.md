@@ -104,10 +104,20 @@ Completa `.env`:
 SUPABASE_URL=https://tu-proyecto.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=clave-solo-servidor
 ADMIN_USERNAME=isaura
-ADMIN_PASSWORD=una-contraseña-larga-y-única
+ADMIN_PASSWORD_HASH=scrypt:hash-generado-con-werkzeug
 ADMIN_SESSION_SECRET=secreto-aleatorio-de-al-menos-32-bytes
 ADMIN_SESSION_TTL=28800
+RATELIMIT_STORAGE_URI=redis://default:password@tu-redis.example.com:6379/0
+MESSAGING_WEBHOOK_SECRET=secreto-aleatorio-para-firmar-webhooks
 ```
+
+Genera el hash de la contraseña administrativa con el mismo entorno virtual:
+
+```bash
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('tu-contraseña'))"
+```
+
+En producción, `RATELIMIT_STORAGE_URI` debe apuntar a Redis/Upstash compartido; `memory://` solo sirve para desarrollo local.
 
 `SUPABASE_SERVICE_ROLE_KEY` nunca debe enviarse al navegador ni subirse al repositorio.
 

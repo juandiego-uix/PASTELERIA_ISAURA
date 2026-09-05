@@ -3,6 +3,7 @@ const BUSINESS_WHATSAPP = "573215457378";
 let dashboard = { orders: [], products: [], metrics: {} };
 let notifiedOrders = new Set(JSON.parse(localStorage.getItem("isaura-alerted-orders") || "[]"));
 let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-alerts") || "[]"));
+let csrfToken = "";
 let cashflowChart;
 let paymentChart;
 
@@ -18,6 +19,7 @@ async function api(path, options = {}) {
     ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
   };
+  if (csrfToken && options.method && !["GET", "HEAD", "OPTIONS"].includes(options.method.toUpperCase())) headers["X-CSRF-Token"] = csrfToken;
   const response = await fetch(path, { ...options, headers, credentials: "same-origin" });
   if (response.status === 204) return null;
   const body = await response.json().catch(() => ({}));
@@ -128,7 +130,7 @@ async function loadDashboard() {
   catch (error) { showToast(error.message); }
 }
 
-function showAdminPanel() { select("#login-container").style.display = "none"; select("#admin-view").hidden = false; loadDashboard(); }
+async function showAdminPanel() { select("#login-container").style.display = "none"; select("#admin-view").hidden = false; try { csrfToken = (await api("/api/auth/csrf")).token; await loadDashboard(); } catch (error) { showToast(error.message); } }
 
 function showOrderDetails(order) {
   const days = daysUntil(order.fecha);

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import io
+import json
 import os
 import secrets
 from datetime import date, datetime, timezone
@@ -10,9 +11,12 @@ from pathlib import Path
 import httpx
 from flask import Flask, jsonify, request, send_file, session
 from dotenv import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
 from werkzeug.exceptions import HTTPException
+from werkzeug.security import check_password_hash
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,7 +26,19 @@ ALLOWED_PAYMENTS = {"Pagado Completo", "Mitad / Abono", "Pendiente de Pago"}
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
-app.secret_key = os.environ.get("ADMIN_SESSION_SECRET", "super_clave_secreta_pasteleria_2026")
+app.secret_key = os.environ.get("ADMIN_SESSION_SECRET")
+if not app.secret_key:
+    raise RuntimeError("ADMIN_SESSION_SECRET es obligatorio")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=os.environ.get("VERCEL", "").lower() == "1",
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
 
 
 def get_supabase() -> Client:
@@ -58,13 +74,20 @@ def database_error(error):
 def require_admin(handler):
     @wraps(handler)
     def wrapped(*args, **kwargs):
-        if session.get("admin") is True or session.get("admin_authenticated") is True:
-            return handler(*args, **kwargs)
-        authorization = request.headers.get("Authorization", "")
-        token = authorization.removeprefix("Bearer ").strip()
-        secret = os.environ.get("ADMIN_SESSION_SECRET")
-        if not secret or not _valid_admin_token(token, secret):
+        session_authenticated = session.get("admin") is True or session.get("admin_authenticated") is True
+        authenticated = session_authenticated
+        if not authenticated:
+            authorization = request.headers.get("Authorization", "")
+            token = authorization.removeprefix("Bearer ").strip()
+            secret = os.environ.get("ADMIN_SESSION_SECRET")
+            authenticated = bool(secret and _valid_admin_token(token, secret))
+        if not authenticated:
             return error_response("Autenticación requerida", 401)
+        if session_authenticated and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            csrf_header = request.headers.get("X-CSRF-Token", "")
+            csrf_session = session.get("csrf_token", "")
+            if not csrf_session or not hmac.compare_digest(csrf_header, csrf_session):
+                return error_response("Token CSRF inválido", 403)
         return handler(*args, **kwargs)
 
     return wrapped
@@ -119,9 +142,7 @@ def _order_payload(payload, partial=False):
             raise ValueError("items debe ser una lista de máximo 50 productos")
         fields["items"] = [{
             "id": int(item["id"]),
-            "nombre": _text(item, "nombre", 120),
             "cantidad": max(1, min(int(item.get("cantidad", 1)), 99)),
-            "precio": max(0, float(item.get("precio", 0))),
         } for item in payload["items"]]
     if "fecha" in fields:
         date.fromisoformat(fields["fecha"])
@@ -130,6 +151,27 @@ def _order_payload(payload, partial=False):
     if fields.get("abono", 0) > fields.get("precio", float("inf")):
         raise ValueError("El abono no puede superar el precio")
     return fields
+
+
+def _resolve_order_items(client, items):
+    if not items:
+        raise ValueError("El pedido debe incluir al menos un producto")
+    product_ids = [item["id"] for item in items]
+    if len(set(product_ids)) != len(product_ids):
+        raise ValueError("No se permiten productos repetidos en el pedido")
+    result = client.table("productos").select("id,nombre,precio").in_("id", product_ids).execute()
+    products = {int(product["id"]): product for product in (result.data or [])}
+    if len(products) != len(product_ids):
+        raise ValueError("Uno o más productos ya no están disponibles")
+    normalized = []
+    total = 0
+    for item in items:
+        product = products[item["id"]]
+        price = float(product.get("precio") or 0)
+        quantity = item["cantidad"]
+        normalized.append({"id": item["id"], "nombre": product["nombre"], "cantidad": quantity, "precio": price})
+        total += price * quantity
+    return normalized, total
 
 
 def _product_payload(payload):
@@ -234,10 +276,14 @@ def citas():
 @app.post("/api/orders")
 @app.post("/api/citas")
 @app.post("/api/pedidos")
+@limiter.limit("10 per hour")
 def create_order():
     try:
         payload = request.get_json(silent=True) or {}
         fields = _order_payload(payload)
+        fields["items"], fields["precio"] = _resolve_order_items(get_supabase(), fields.get("items", []))
+        if fields.get("abono", 0) > fields["precio"]:
+            raise ValueError("El abono no puede superar el precio calculado")
         fields.update({"estado": "Pendiente", "origen": "web"})
         result = get_supabase().table("citas").insert(fields).execute()
         return jsonify({"data": result.data[0] if result.data else None}), 201
@@ -249,19 +295,21 @@ def create_order():
 
 @app.post("/api/login")
 @app.post("/api/auth/login")
+@limiter.limit("10 per minute")
 def login():
     payload = request.get_json(silent=True) or {}
     username = str(payload.get("username", ""))
     password = str(payload.get("password", ""))
-    expected_user = os.environ.get("ADMIN_USERNAME", "isaura")
-    expected_password = os.environ.get("ADMIN_PASSWORD", "1052243510familiacerpa")
-    if not secrets.compare_digest(username, expected_user) or not secrets.compare_digest(password, expected_password):
+    expected_user = os.environ.get("ADMIN_USERNAME")
+    expected_hash = os.environ.get("ADMIN_PASSWORD_HASH")
+    if not expected_user or not expected_hash:
+        return error_response("Autenticación no configurada en el servidor", 503)
+    if not secrets.compare_digest(username, expected_user) or not check_password_hash(expected_hash, password):
         return error_response("Usuario o contraseña incorrectos", 401)
-    session_secret = os.environ.get("ADMIN_SESSION_SECRET", "super_clave_secreta_pasteleria_2026")
-    app.secret_key = session_secret
     session.clear()
     session["admin"] = True
     session["admin_authenticated"] = True
+    session["csrf_token"] = secrets.token_urlsafe(32)
     return jsonify({"success": True}), 200
 
 
@@ -276,6 +324,14 @@ def logout():
 def auth_session():
     authenticated = session.get("admin") is True or session.get("admin_authenticated") is True
     return jsonify({"success": authenticated}), 200
+
+
+@app.get("/api/auth/csrf")
+@require_admin
+def csrf():
+    token = session.get("csrf_token") or secrets.token_urlsafe(32)
+    session["csrf_token"] = token
+    return jsonify({"token": token})
 
 
 @app.get("/api/admin/dashboard")
@@ -310,6 +366,10 @@ def dashboard():
 def admin_create_order():
     try:
         fields = _order_payload(request.get_json(silent=True) or {})
+        if fields.get("items"):
+            fields["items"], fields["precio"] = _resolve_order_items(get_supabase(), fields["items"])
+            if fields.get("abono", 0) > fields["precio"]:
+                raise ValueError("El abono no puede superar el precio calculado")
         fields["estado"] = "Pendiente"
         result = get_supabase().table("citas").insert(fields).execute()
         return jsonify({"data": result.data[0]}), 201
@@ -446,7 +506,12 @@ def send_proximity_messages():
     try:
         orders = get_supabase().table("citas").select("*").neq("estado", "Entregado").execute().data or []
         upcoming = [order for order in orders if 0 <= (date.fromisoformat(str(order["fecha"])) - date.today()).days <= 2]
-        response = httpx.post(webhook, json={"provider": provider, "orders": upcoming}, timeout=10)
+        body = json.dumps({"provider": provider, "orders": upcoming}, separators=(",", ":"), ensure_ascii=False).encode()
+        webhook_secret = os.environ.get("MESSAGING_WEBHOOK_SECRET")
+        if not webhook_secret:
+            return error_response("Configura MESSAGING_WEBHOOK_SECRET para firmar la mensajería", 503)
+        signature = hmac.new(webhook_secret.encode(), body, hashlib.sha256).hexdigest()
+        response = httpx.post(webhook, content=body, headers={"Content-Type": "application/json", "X-Webhook-Signature": f"sha256={signature}"}, timeout=10)
         response.raise_for_status()
         return jsonify({"sent": len(upcoming), "provider": provider})
     except (APIError, RuntimeError, httpx.HTTPError, ValueError) as error:

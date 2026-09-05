@@ -26,17 +26,34 @@ Aplicación web de producción para **Isaura Cerpa**, una pastelería artesanal.
 - Roles operativos, producción diaria, seguimiento público, reportes financieros y trazabilidad de inventario.
 - Estados de carga, errores visibles y validación en cliente y servidor.
 - Diseño mobile-first con HTML semántico, CSS Grid/Flexbox y tipografía editorial.
-│   ├── manifest.json        # Configuración PWA
-│   ├── sw.js                # Caché offline del app shell
 
-| `GET` | `/api/admin/orders/:id/receipt.pdf` | Admin | Descargar comprobante PDF |
-| `POST` | `/api/admin/messages/proximity` | Admin | Enviar próximos pedidos al webhook configurado |
-| `GET` | `/api/track/:token` | Público | Seguimiento limitado del pedido |
-| `GET/PATCH` | `/api/admin/orders/:id/lifecycle` | Por rol | Ciclo operativo e historial |
-| `GET` | `/api/admin/production/today` | Producción | Cola de preparación del día |
-| `GET/POST` | `/api/admin/expenses` | Finanzas | Gastos operativos |
-| `GET` | `/api/admin/reports/summary` | Finanzas | Ventas, cobros, gastos y utilidad |
-| `GET` | `/api/admin/reports/orders.csv` | Admin/Ventas | Exportación de pedidos |
+## Funciones ERP
+
+- Supabase Auth con roles `administrador`, `produccion`, `ventas` y `solo_lectura`.
+- Estados de pedido: `Pendiente`, `Confirmado`, `En producción`, `Listo`, `Entregado` y `Cancelado`.
+- Historial de estados, notas internas, reprogramación, checklist y token de seguimiento público.
+- Inventario con recetas, costos unitarios, vencimientos y movimientos de entrada, salida, ajuste y devolución.
+- Descuento y reposición automática de insumos mediante triggers PostgreSQL.
+- Producción diaria, etiquetas imprimibles, gastos, cuentas por cobrar, utilidad neta y exportación CSV.
+- Variantes, adicionales, productos destacados, disponibilidad y descuentos.
+- Mensajería por Meta WhatsApp Cloud API, Twilio o webhook firmado.
+- Sentry para errores del backend, PWA instalable y diseño responsive para teléfonos y tablets.
+
+## API ERP
+
+| Método | Ruta | Acceso | Propósito |
+| --- | --- | --- | --- |
+| `GET` | `/api/track/:token` | Público | Seguimiento limitado de un pedido |
+| `GET/PATCH` | `/api/admin/orders/:id/lifecycle` | Por rol | Ciclo operativo del pedido |
+| `GET` | `/api/admin/orders/:id/history` | Por rol | Historial de cambios |
+| `GET` | `/api/admin/production/today` | Producción | Cola de preparación diaria |
+| `POST` | `/api/admin/inventory/movements` | Admin/Producción | Ajustar inventario |
+| `GET/POST` | `/api/admin/expenses` | Admin | Gastos operativos |
+| `GET` | `/api/admin/reports/summary` | Admin/Lectura | Resumen financiero |
+| `GET` | `/api/admin/reports/orders.csv` | Admin/Ventas | Exportar pedidos |
+| `GET` | `/api/admin/orders/:id/receipt.pdf` | Admin | Descargar recibo PDF |
+| `GET` | `/api/catalog/options` | Público | Variantes y adicionales |
+
 ## Stack tecnológico
 
 ### Inventario y mensajería
@@ -63,6 +80,8 @@ Configura `SENTRY_DSN` en Vercel para recibir errores y trazas del backend. Para
 ISAURA/
 ├── api/
 │   ├── index.py             # App Flask, endpoints y validaciones
+│   ├── erp.py               # Roles, producción, finanzas y tracking
+│   ├── notifications.py     # Meta, Twilio y webhooks firmados
 │   ├── __init__.py
 │   └── requirements.txt     # Dependencias fijadas
 ├── public/
@@ -71,6 +90,8 @@ ISAURA/
 │   ├── track.html / track.js # Seguimiento público de pedidos
 │   ├── admin.html           # Panel administrativo
 │   ├── admin.js             # Operaciones protegidas del panel
+│   ├── manifest.json         # Instalación PWA
+│   ├── sw.js                 # Caché offline del app shell
 │   ├── styles.css
 │   ├── admin.css
 │   └── uploads/             # Activos históricos de la marca
@@ -116,12 +137,19 @@ Completa `.env`:
 
 ```dotenv
 SUPABASE_URL=https://tu-proyecto.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=clave-solo-servidor
-ADMIN_USERNAME=isaura
+SUPABASE_ANON_KEY=clave-publica-de-supabase
+SUPABASE_KEY=clave-service-role-solo-servidor
+SUPABASE_AUTH_ENABLED=true
 ADMIN_PASSWORD_HASH=scrypt:hash-generado-con-werkzeug
 ADMIN_SESSION_SECRET=secreto-aleatorio-de-al-menos-32-bytes
 ADMIN_SESSION_TTL=28800
 RATELIMIT_STORAGE_URI=redis://default:password@tu-redis.example.com:6379/0
+SENTRY_DSN=https://clave@o0.ingest.sentry.io/proyecto
+SENTRY_TRACES_SAMPLE_RATE=0.05
+MESSAGING_PROVIDER=meta
+META_ACCESS_TOKEN=token-privado-de-meta
+META_PHONE_NUMBER_ID=id-del-numero-de-whatsapp
+META_TEMPLATE_NAME=pedido_actualizacion
 MESSAGING_WEBHOOK_SECRET=secreto-aleatorio-para-firmar-webhooks
 ```
 
@@ -133,7 +161,9 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 
 En producción, `RATELIMIT_STORAGE_URI` debe apuntar a Redis/Upstash compartido; `memory://` solo sirve para desarrollo local.
 
-`SUPABASE_SERVICE_ROLE_KEY` nunca debe enviarse al navegador ni subirse al repositorio.
+`SUPABASE_KEY`, `META_ACCESS_TOKEN`, `MESSAGING_WEBHOOK_SECRET` y `ADMIN_SESSION_SECRET` nunca deben enviarse al navegador ni subirse al repositorio.
+
+Con `SUPABASE_AUTH_ENABLED=true`, crea los usuarios en **Supabase → Authentication → Users** y asigna su rol en `public.perfiles`. La contraseña de Supabase Auth no es la `SUPABASE_ANON_KEY`.
 
 ### 4. Ejecutar Flask
 
@@ -179,6 +209,12 @@ Las respuestas de error mantienen el formato `{ "error": "mensaje" }` y usan có
 4. Despliega. [`vercel.json`](vercel.json) dirige `/api/*` a Flask y sirve el frontend desde `public/`.
 
 La clave service role solo se utiliza dentro de la función Python. El navegador recibe únicamente datos públicos y URLs de imágenes.
+
+### Configuración de Sentry y WhatsApp
+
+`SENTRY_DSN` se obtiene en el proyecto de Sentry, en **Settings → Client Keys (DSN)**. Selecciona la plataforma **Python** o **Flask**.
+
+Para Meta WhatsApp Cloud API necesitas una aplicación de Meta Business, un token de acceso, el `Phone Number ID` y una plantilla aprobada. Como alternativa, configura `MESSAGING_PROVIDER=twilio` con las variables de Twilio. Si no configuras ningún proveedor, el enlace manual de WhatsApp de la tienda sigue funcionando.
 
 ### Migrar imágenes existentes
 

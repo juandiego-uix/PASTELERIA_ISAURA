@@ -68,10 +68,7 @@ create or replace function public.registrar_cambio_pedido()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   new.updated_at := now();
-  if tg_op = 'INSERT' then
-    insert into public.pedido_historial (pedido_id, usuario_id, estado_anterior, estado_nuevo, notas)
-    values (new.id, auth.uid(), null, new.estado, new.notas_internas);
-  elsif old.estado is distinct from new.estado then
+  if old.estado is distinct from new.estado then
     insert into public.pedido_historial (pedido_id, usuario_id, estado_anterior, estado_nuevo, notas)
     values (new.id, auth.uid(), old.estado, new.estado, new.notas_internas);
   end if;
@@ -81,8 +78,49 @@ $$;
 
 drop trigger if exists registrar_cambio_pedido on public.citas;
 create trigger registrar_cambio_pedido
-before insert or update on public.citas
+before update on public.citas
 for each row execute function public.registrar_cambio_pedido();
+
+create or replace function public.registrar_pedido_nuevo()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.pedido_historial (pedido_id, usuario_id, estado_anterior, estado_nuevo, notas)
+  values (new.id, auth.uid(), null, new.estado, new.notas_internas);
+  return new;
+end;
+$$;
+
+drop trigger if exists registrar_pedido_nuevo on public.citas;
+create trigger registrar_pedido_nuevo
+after insert on public.citas
+for each row execute function public.registrar_pedido_nuevo();
+
+create or replace function public.reponer_insumos_pedido()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  item jsonb;
+  recipe record;
+  restored_stock numeric;
+begin
+  for item in select * from jsonb_array_elements(coalesce(old.items, '[]'::jsonb)) loop
+    for recipe in select pi.insumo_id, pi.cantidad
+      from producto_insumos pi
+      where pi.producto_id = (item->>'id')::bigint loop
+      restored_stock := recipe.cantidad * greatest(1, (item->>'cantidad')::numeric);
+      update insumos set stock_actual = stock_actual + restored_stock, updated_at = now()
+      where id = recipe.insumo_id;
+      insert into movimientos_inventario (insumo_id, pedido_id, tipo, cantidad, motivo)
+      values (recipe.insumo_id, old.id, 'devolución', restored_stock, 'Pedido eliminado');
+    end loop;
+  end loop;
+  return old;
+end;
+$$;
+
+drop trigger if exists reponer_insumos_al_eliminar_pedido on public.citas;
+create trigger reponer_insumos_al_eliminar_pedido
+before delete on public.citas
+for each row execute function public.reponer_insumos_pedido();
 
 alter table public.movimientos_inventario enable row level security;
 alter table public.gastos enable row level security;

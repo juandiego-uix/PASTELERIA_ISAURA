@@ -108,7 +108,7 @@ for each row execute function public.descontar_insumos_pedido();
 
 drop trigger if exists reponer_insumos_al_eliminar_pedido on public.citas;
 create trigger reponer_insumos_al_eliminar_pedido
-after delete on public.citas
+before delete on public.citas
 for each row execute function public.reponer_insumos_pedido();
 
 create index if not exists citas_fecha_estado_idx on public.citas (fecha, estado);
@@ -247,8 +247,21 @@ end;
 $$;
 
 drop trigger if exists registrar_cambio_pedido on public.citas;
-create trigger registrar_cambio_pedido before insert or update on public.citas
+create trigger registrar_cambio_pedido before update on public.citas
 for each row execute function public.registrar_cambio_pedido();
+
+create or replace function public.registrar_pedido_nuevo()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into pedido_historial (pedido_id, usuario_id, estado_anterior, estado_nuevo, notas)
+  values (new.id, auth.uid(), null, new.estado, new.notas_internas);
+  return new;
+end;
+$$;
+
+drop trigger if exists registrar_pedido_nuevo on public.citas;
+create trigger registrar_pedido_nuevo after insert on public.citas
+for each row execute function public.registrar_pedido_nuevo();
 
 create index if not exists citas_tracking_token_idx on public.citas (tracking_token);
 create index if not exists citas_estado_fecha_idx on public.citas (estado, fecha);

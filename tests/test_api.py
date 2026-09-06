@@ -37,3 +37,20 @@ def test_order_item_price_is_server_owned():
     assert total == 50000
     assert items[0]["nombre"] == "Torta"
     assert items[0]["precio"] == 25000
+
+
+def test_order_payload_accepts_supabase_time_with_seconds():
+    from api.index import _order_payload
+
+    payload = {
+        "nombre_cliente": "Cliente",
+        "contacto": "3000000000",
+        "fecha": "2026-09-05",
+        "hora": "10:00:00",
+        "descripcion": "Torta de prueba",
+        "tipo_pago": "Pendiente de Pago",
+        "precio": 0,
+        "abono": 0,
+    }
+
+    assert _order_payload(payload)["hora"] == "10:00:00"

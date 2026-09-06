@@ -51,7 +51,7 @@ limiter = Limiter(
 
 def get_supabase() -> Client:
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
     if not url or not key:
         raise RuntimeError("Faltan SUPABASE_URL y SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY")
     return create_client(url, key)

@@ -12,6 +12,10 @@ ROLES = {"administrador", "produccion", "ventas", "solo_lectura"}
 ORDER_STATES = {"Pendiente", "Confirmado", "En producción", "Listo", "Entregado", "Cancelado"}
 
 
+def _missing_table(error, table_name):
+    return table_name in str(error) and "PGRST205" in str(error)
+
+
 def register_erp_routes(app, get_supabase, require_admin, role_required):
     @app.get("/api/track/<uuid:tracking_token>")
     def track_order(tracking_token):
@@ -65,7 +69,11 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
             except Exception as error:
                 app.logger.warning("No se pudo enviar actualización de pedido: %s", error)
                 message_record["error"] = str(error)[:500]
-            get_supabase().table("pedido_mensajes").insert(message_record).execute()
+            try:
+                get_supabase().table("pedido_mensajes").insert(message_record).execute()
+            except Exception as error:
+                if not _missing_table(error, "pedido_mensajes"):
+                    raise
         return jsonify({"data": result.data[0] if result.data else None})
 
     @app.get("/api/admin/production/today")
@@ -102,7 +110,12 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
     @app.get("/api/admin/expenses")
     @role_required("administrador", "solo_lectura")
     def expenses():
-        result = get_supabase().table("gastos").select("*").order("fecha", desc=True).execute()
+        try:
+            result = get_supabase().table("gastos").select("*").order("fecha", desc=True).execute()
+        except Exception as error:
+            if _missing_table(error, "gastos"):
+                return jsonify({"data": []})
+            raise
         return jsonify({"data": result.data or []})
 
     @app.post("/api/admin/expenses")
@@ -123,7 +136,13 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
     def report_summary():
         client = get_supabase()
         orders = client.table("citas").select("precio,abono,fecha,estado,created_at").execute().data or []
-        expenses_data = client.table("gastos").select("monto,fecha").execute().data or []
+        try:
+            expenses_data = client.table("gastos").select("monto,fecha").execute().data or []
+        except Exception as error:
+            if _missing_table(error, "gastos"):
+                expenses_data = []
+            else:
+                raise
         sales = sum(float(order.get("precio") or 0) for order in orders if order.get("estado") != "Cancelado")
         deposits = sum(float(order.get("abono") or 0) for order in orders if order.get("estado") != "Cancelado")
         expenses_total = sum(float(item.get("monto") or 0) for item in expenses_data)

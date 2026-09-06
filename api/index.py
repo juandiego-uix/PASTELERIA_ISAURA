@@ -407,7 +407,7 @@ def dashboard():
                 "pending_today": sum(1 for order in orders if order.get("estado") == "Pendiente" and order.get("fecha") == today),
                 "delivered_month": sum(1 for order in orders if order.get("estado") == "Entregado" and str(order.get("fecha", "")).startswith(f"{year}-{date.today().month:02d}")),
                 "monthly_delivered": delivered_by_month,
-                "monthly_cashflow": [sum(float(order.get("abono") or 0) for order in orders if str(order.get("created_at", "")).startswith(f"{year}-{month:02d}")) for month in range(1, 13)],
+                "monthly_cashflow": [sum(float(order.get("abono") or 0) for order in orders if str(order.get("created_at") or order.get("fecha") or "").startswith(f"{year}-{month:02d}")) for month in range(1, 13)],
                 "payment_distribution": {payment: sum(1 for order in orders if order.get("tipo_pago") == payment) for payment in ALLOWED_PAYMENTS},
             },
             "inventory": inventory,

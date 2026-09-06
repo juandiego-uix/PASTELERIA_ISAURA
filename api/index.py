@@ -4,7 +4,7 @@ import io
 import json
 import os
 import secrets
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
@@ -40,6 +40,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SECURE=os.environ.get("VERCEL", "").lower() == "1",
     SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(seconds=int(os.environ.get("ADMIN_SESSION_COOKIE_TTL", "2592000"))),
 )
 limiter = Limiter(
     key_func=get_remote_address,
@@ -202,8 +203,9 @@ def _product_payload(payload):
     fields = {
         "nombre": _text(payload, "nombre", 120),
         "categoria": _text(payload, "categoria", 80),
-        "descripcion": _text(payload, "descripcion", 1000, required=False),
     }
+    if "descripcion" in payload:
+        fields["descripcion"] = _text(payload, "descripcion", 1000, required=False)
     if "precio" in payload:
         fields["precio"] = max(0, float(payload.get("precio", 0)))
     for key in ("destacado", "disponible"):
@@ -342,6 +344,7 @@ def login():
             user_id = str(auth_result.user.id)
             profile = get_supabase().table("perfiles").select("rol,nombre").eq("id", user_id).single().execute().data or {}
             session.clear()
+            session.permanent = True
             session["admin"] = True
             session["admin_authenticated"] = True
             session["user_id"] = user_id
@@ -357,6 +360,7 @@ def login():
     if not secrets.compare_digest(username, expected_user) or not check_password_hash(expected_hash, password):
         return error_response("Usuario o contraseña incorrectos", 401)
     session.clear()
+    session.permanent = True
     session["admin"] = True
     session["admin_authenticated"] = True
     session["role"] = "administrador"

@@ -80,7 +80,7 @@
   <dialog id="product-dialog" class="modal">
     <form id="product-form" method="dialog" enctype="multipart/form-data">
       <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Añadir producto</h2></div><button class="close" type="button" data-close="product-dialog" aria-label="Cerrar">×</button></div>
-      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label>Precio<input name="precio" type="number" min="0" step="0.01" value="0" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
+      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label class="wide">Imagen<input name="imagen" type="file" accept="image/jpeg,image/png,image/webp" required></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="product-dialog">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
     </form>
   </dialog>
@@ -107,7 +107,7 @@
     <form id="edit-product-form" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">Catálogo</p><h2>Editar producto</h2></div><button class="close" type="button" data-close="edit-product-dialog" aria-label="Cerrar">×</button></div>
       <input type="hidden" name="id">
-      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label><label>Precio<input name="precio" type="number" min="0" step="0.01" required></label><label class="wide">Descripción<textarea name="descripcion"></textarea></label></div>
+      <div class="form-grid"><label class="wide">Nombre<input name="nombre" required></label><label>Categoría<input name="categoria" required></label></div>
       <div class="dialog-actions"><button class="secondary" type="button" data-close="edit-product-dialog">Cancelar</button><button class="primary" type="submit">Guardar cambios</button></div>
     </form>
   </dialog>

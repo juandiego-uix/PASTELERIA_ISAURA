@@ -4,6 +4,7 @@
 alter table public.citas add column if not exists notas_internas text not null default '';
 alter table public.citas add column if not exists updated_at timestamptz not null default now();
 alter table public.citas add column if not exists tracking_token uuid not null default gen_random_uuid();
+alter table public.citas add column if not exists archived_at timestamptz;
 
 update public.citas
 set estado = 'En producción'
@@ -61,6 +62,7 @@ create index if not exists pedido_historial_pedido_idx
   on public.pedido_historial (pedido_id, created_at desc);
 create index if not exists gastos_fecha_idx on public.gastos (fecha);
 create index if not exists citas_tracking_token_idx on public.citas (tracking_token);
+create index if not exists citas_archived_at_idx on public.citas (archived_at);
 
 create or replace function public.registrar_cambio_pedido()
 returns trigger language plpgsql security definer set search_path = public as $$

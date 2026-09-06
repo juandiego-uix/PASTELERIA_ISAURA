@@ -4,7 +4,7 @@ import io
 import json
 import os
 import secrets
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
@@ -172,7 +172,7 @@ def _order_payload(payload, partial=False):
     if "fecha" in fields:
         date.fromisoformat(fields["fecha"])
     if "hora" in fields:
-        datetime.strptime(fields["hora"], "%H:%M")
+        time.fromisoformat(fields["hora"])
     if fields.get("abono", 0) > fields.get("precio", float("inf")):
         raise ValueError("El abono no puede superar el precio")
     return fields
@@ -395,6 +395,7 @@ def dashboard():
     try:
         client = get_supabase()
         orders = client.table("citas").select("*").order("fecha").order("hora").execute().data or []
+        orders = [order for order in orders if not order.get("archived_at")]
         products_data = [with_image_url(product) for product in (client.table("productos").select("*").order("id", desc=True).execute().data or [])]
         inventory = client.table("insumos").select("*").order("stock_actual").execute().data or []
         year = date.today().year
@@ -461,6 +462,33 @@ def admin_delete_order(order_id):
     try:
         get_supabase().table("citas").delete().eq("id", order_id).execute()
         return ("", 204)
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.post("/api/admin/orders/archive-completed")
+@role_required("administrador")
+def archive_completed_orders():
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        client = get_supabase()
+        orders = client.table("citas").select("id,estado,fecha,updated_at,archived_at").execute().data or []
+        eligible = []
+        for order in orders:
+            if order.get("archived_at") or order.get("estado") not in {"Entregado", "Cancelado"}:
+                continue
+            reference = order.get("updated_at") or f"{order.get('fecha')}T00:00:00+00:00"
+            try:
+                reference_date = datetime.fromisoformat(str(reference).replace("Z", "+00:00"))
+                if reference_date.tzinfo is None:
+                    reference_date = reference_date.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if reference_date <= cutoff:
+                eligible.append(order["id"])
+        if eligible:
+            client.table("citas").update({"archived_at": datetime.now(timezone.utc).isoformat()}).in_("id", eligible).execute()
+        return jsonify({"archived": len(eligible)}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

@@ -158,7 +158,14 @@ function showOrderDetails(order) {
   select("#order-details").innerHTML = `<div class="details-grid"><div class="detail-item"><strong>Cliente</strong><span>${escapeHtml(order.nombre_cliente)}</span></div><div class="detail-item"><strong>Contacto</strong><span>${escapeHtml(order.contacto)}</span></div><div class="detail-item"><strong>Entrega</strong><span>${escapeHtml(order.fecha)} · ${escapeHtml(order.hora)} (${days < 0 ? "vencido" : `faltan ${days} días`})</span></div><div class="detail-item"><strong>Estado del pedido</strong><span>${escapeHtml(order.estado)}</span></div><div class="detail-item"><strong>Estado de pago</strong><span>${escapeHtml(order.tipo_pago)}</span></div><div class="detail-item"><strong>Importes</strong><span>Abono: ${money(order.abono)} · Total: ${money(order.precio)}</span></div><div class="detail-item detail-full"><strong>Descripción</strong><span>${escapeHtml(order.descripcion)}</span></div></div>`;
   select("#whatsapp-alert").href = orderWhatsAppUrl(order);
   select("#receipt-link").href = `/api/admin/orders/${order.id}/receipt.pdf`;
+  select("#order-history").textContent = "Cargando historial...";
   openModal("details-dialog");
+  api(`/api/admin/orders/${order.id}/history`).then((response) => {
+    const history = response.data || [];
+    select("#order-history").innerHTML = history.length
+      ? `<strong>Historial</strong><br>${history.map((entry) => `${escapeHtml(entry.created_at || "")} · ${escapeHtml(entry.estado_anterior || "Nuevo")} → ${escapeHtml(entry.estado_nuevo)}`).join("<br>")}`
+      : "Sin cambios de estado registrados.";
+  }).catch(() => { select("#order-history").textContent = "No se pudo cargar el historial."; });
 }
 
 function downloadMonthlyReport() {
@@ -224,6 +231,8 @@ select("#new-order").addEventListener("click", () => openModal("order-dialog"));
 select("#new-product").addEventListener("click", () => openModal("product-dialog"));
 select("#new-inventory").addEventListener("click", () => openInventoryEditor());
 select("#reload-production").addEventListener("click", loadProduction);
+select("#archive-completed").addEventListener("click", async () => { if (!window.confirm("Se archivarán los pedidos Entregados o Cancelados con más de 30 días. No se borrarán. ¿Continuar?")) return; try { const response = await api("/api/admin/orders/archive-completed", { method: "POST" }); await loadDashboard(); showToast(`${response.archived || 0} pedido(s) archivado(s)`); } catch (error) { showToast(error.message); } });
+select("#reset-finance").addEventListener("click", async () => { const confirmation = window.prompt("Esto pondrá ventas, abonos y gastos en cero, pero conservará clientes y productos. Escribe BORRAR TODO para continuar:"); if (confirmation !== "BORRAR TODO") return; if (!window.confirm("Última advertencia: se eliminarán los gastos y se pondrán en cero los importes de todos los pedidos. ¿Confirmas?")) return; try { await api("/api/admin/reports/reset", { method: "POST", body: JSON.stringify({ confirmacion: confirmation }) }); await loadDashboard(); await loadFinance(); showToast("Resumen financiero reiniciado"); } catch (error) { showToast(error.message); } });
 
 select("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/orders", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) }); dashboard.orders.push(result.data); form.reset(); closeModal("order-dialog", false); renderDashboard(); showToast("Pedido guardado"); } catch (error) { showToast(error.message); } });
 select("#product-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await api("/api/admin/products", { method: "POST", body: new FormData(form) }); dashboard.products.unshift(result.data); form.reset(); closeModal("product-dialog", false); renderDashboard(); showToast("Producto guardado"); } catch (error) { showToast(error.message); } });

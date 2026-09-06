@@ -21,6 +21,7 @@ create table if not exists public.citas (
   abono numeric(12, 2) not null default 0 check (abono >= 0 and abono <= precio),
   origen text not null default 'admin',
   items jsonb not null default '[]'::jsonb,
+  archived_at timestamptz,
   created_at timestamptz not null default now()
 );
 

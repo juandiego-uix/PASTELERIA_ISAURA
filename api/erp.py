@@ -135,7 +135,13 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
     @role_required("administrador", "solo_lectura")
     def report_summary():
         client = get_supabase()
-        orders = client.table("citas").select("precio,abono,fecha,estado,created_at").execute().data or []
+        try:
+            orders_data = client.table("citas").select("precio,abono,fecha,estado,created_at,archived_at").execute().data or []
+        except Exception as error:
+            if "archived_at" not in str(error):
+                raise
+            orders_data = client.table("citas").select("precio,abono,fecha,estado,created_at").execute().data or []
+        orders = [order for order in orders_data if not order.get("archived_at")]
         try:
             expenses_data = client.table("gastos").select("monto,fecha").execute().data or []
         except Exception as error:
@@ -148,6 +154,17 @@ def register_erp_routes(app, get_supabase, require_admin, role_required):
         expenses_total = sum(float(item.get("monto") or 0) for item in expenses_data)
         receivable = max(0, sales - deposits)
         return jsonify({"data": {"ventas": sales, "abonos": deposits, "por_cobrar": receivable, "gastos": expenses_total, "utilidad_neta": deposits - expenses_total, "pedidos": len(orders)}})
+
+    @app.post("/api/admin/reports/reset")
+    @role_required("administrador")
+    def reset_financial_summary():
+        payload = request.get_json(silent=True) or {}
+        if payload.get("confirmacion") != "BORRAR TODO":
+            return jsonify({"error": "Escribe BORRAR TODO para confirmar el reinicio financiero"}), 400
+        client = get_supabase()
+        expenses = client.table("gastos").delete().neq("id", 0).execute()
+        orders = client.table("citas").update({"precio": 0, "abono": 0}).neq("id", 0).execute()
+        return jsonify({"success": True, "gastos_borrados": len(expenses.data or []), "pedidos_reiniciados": len(orders.data or [])})
 
     @app.get("/api/admin/reports/orders.csv")
     @role_required("administrador", "ventas", "solo_lectura")

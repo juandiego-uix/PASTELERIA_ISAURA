@@ -71,6 +71,27 @@ def error_response(message: str, status: int = 400):
     return jsonify({"error": message}), status
 
 
+def _build_backup(client):
+    return {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "orders": client.table("citas").select("*").execute().data or [],
+        "products": client.table("productos").select("*").execute().data or [],
+        "inventory": client.table("insumos").select("*").execute().data or [],
+    }
+
+
+def _save_backup_to_storage():
+    bucket = os.environ.get("SUPABASE_BACKUP_BUCKET", "backups")
+    backup = _build_backup(get_supabase())
+    filename = f"{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/isaura-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    get_supabase().storage.from_(bucket).upload(
+        filename,
+        json.dumps(backup, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+        {"content-type": "application/json", "upsert": "true"},
+    )
+    return filename
+
+
 def database_error(error):
     app.logger.exception("Error de Supabase", exc_info=error)
     return jsonify({
@@ -520,14 +541,30 @@ def restore_order(order_id):
 @role_required("administrador")
 def download_backup():
     try:
-        client = get_supabase()
-        backup = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "orders": client.table("citas").select("*").execute().data or [],
-            "products": client.table("productos").select("*").execute().data or [],
-            "inventory": client.table("insumos").select("*").execute().data or [],
-        }
-        return jsonify(backup), 200
+        return jsonify(_build_backup(get_supabase())), 200
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.post("/api/admin/backup/save")
+@role_required("administrador")
+def save_backup():
+    try:
+        path = _save_backup_to_storage()
+        return jsonify({"success": True, "path": path, "message": "Respaldo guardado en Supabase Storage"})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.get("/api/cron/backup")
+def scheduled_backup():
+    expected = os.environ.get("CRON_SECRET")
+    authorization = request.headers.get("Authorization", "")
+    if not expected or not hmac.compare_digest(authorization, f"Bearer {expected}"):
+        return error_response("No autorizado", 401)
+    try:
+        path = _save_backup_to_storage()
+        return jsonify({"success": True, "path": path}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

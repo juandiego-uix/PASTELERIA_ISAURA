@@ -54,3 +54,9 @@ def test_order_payload_accepts_supabase_time_with_seconds():
     }
 
     assert _order_payload(payload)["hora"] == "10:00:00"
+
+
+def test_scheduled_backup_requires_secret():
+    from api.index import app
+
+    assert app.test_client().get("/api/cron/backup").status_code == 401

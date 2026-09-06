@@ -286,3 +286,4 @@ drop policy if exists "resenas publicadas" on public.resenas;
 create policy "resenas publicadas" on public.resenas for select using (publicada = true);
 
 insert into storage.buckets (id, name, public) values ('productos', 'productos', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('backups', 'backups', false) on conflict (id) do nothing;

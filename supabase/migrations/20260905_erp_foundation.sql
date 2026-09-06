@@ -127,4 +127,8 @@ alter table public.gastos enable row level security;
 alter table public.pedido_historial enable row level security;
 alter table public.pedido_mensajes enable row level security;
 
+insert into storage.buckets (id, name, public)
+values ('backups', 'backups', false)
+on conflict (id) do nothing;
+
 -- El backend usa la clave service role; el navegador no obtiene acceso directo.

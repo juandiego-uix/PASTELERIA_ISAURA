@@ -2,6 +2,7 @@ const state = {
   products: JSON.parse(localStorage.getItem("isaura-products") || "[]"),
   favorites: JSON.parse(localStorage.getItem("isaura-favorites") || "[]"),
 };
+const BUSINESS_WHATSAPP = "573215457378";
 const $ = (selector) => document.querySelector(selector);
 const imageUrl = (product) => product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`;
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" }[char])); }
@@ -23,5 +24,6 @@ async function loadProducts() { try { const response = await api("/api/products"
 $("#searchInput").addEventListener("input", renderProducts); $("#btnVerTodos").addEventListener("click", () => { $("#searchInput").value = ""; renderProducts(); }); $("#open-favorites").addEventListener("click", () => openFavorites(true)); $("#close-favorites").addEventListener("click", () => openFavorites(false)); $("#scrim").addEventListener("click", () => openFavorites(false));
 $("#products").addEventListener("click", (event) => { const favorite = event.target.closest("[data-favorite]"); if (!favorite) return; const name = favorite.dataset.favorite; state.favorites = state.favorites.includes(name) ? state.favorites.filter((item) => item !== name) : [...state.favorites, name]; renderSelection(); });
 $("#favorite-list").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove]"); if (remove) { state.favorites.splice(Number(remove.dataset.remove), 1); renderSelection(); } });
+$("#send-favorites-whatsapp").addEventListener("click", () => { if (!state.favorites.length) { toast("Elige al menos un favorito"); return; } const message = `Hola Isaura, me interesan estos productos:\n\n${state.favorites.map((name) => `• ${name}`).join("\n")}`; window.open(`https://wa.me/${BUSINESS_WHATSAPP}?text=${encodeURIComponent(message)}`, "_blank", "noopener"); });
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
 loadProducts();

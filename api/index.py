@@ -460,8 +460,12 @@ def admin_update_order(order_id):
 @require_admin
 def admin_delete_order(order_id):
     try:
-        get_supabase().table("citas").delete().eq("id", order_id).execute()
-        return ("", 204)
+        client = get_supabase()
+        existing = client.table("citas").select("id").eq("id", order_id).limit(1).execute().data or []
+        if not existing:
+            return error_response("El pedido ya no existe", 404)
+        client.table("citas").delete().eq("id", order_id).execute()
+        return jsonify({"success": True, "deleted": order_id}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

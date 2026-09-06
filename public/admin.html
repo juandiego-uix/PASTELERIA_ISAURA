@@ -39,8 +39,10 @@
     <nav class="tabs" aria-label="Secciones"><button class="tab active" data-tab="orders" type="button">Pedidos</button><button class="tab" data-tab="products" type="button">Catálogo</button><button class="tab" data-tab="inventory" type="button">Inventario</button><button class="tab" data-tab="production" type="button">Producción</button><button class="tab" data-tab="finance" type="button">Finanzas</button></nav>
 
     <section id="orders-panel" class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><div class="row-actions"><button class="secondary" id="archive-completed" type="button">Archivar finalizados ahora</button><button class="primary" id="new-order" type="button">+ Nuevo pedido</button></div></div>
+      <div class="panel-heading"><div><p class="eyebrow">Agenda</p><h2>Pedidos de clientes</h2></div><div class="row-actions"><button class="secondary" id="archive-completed" type="button">Archivar finalizados ahora</button><button class="secondary" id="show-trash" type="button">Papelera</button><button class="primary" id="new-order" type="button">+ Nuevo pedido</button></div></div>
+      <div class="order-filters"><input id="order-search" type="search" placeholder="Buscar cliente o descripción"><select id="order-filter-status"><option value="">Todos los estados</option><option>Pendiente</option><option>Confirmado</option><option>En producción</option><option>Listo</option><option>Entregado</option><option>Cancelado</option></select></div>
       <div class="table-wrap"><table><thead><tr><th>Entrega</th><th>Cliente</th><th>Pago</th><th>Progreso</th><th>Acciones</th></tr></thead><tbody id="orders-table"></tbody></table></div>
+      <section id="trash-panel" class="trash-panel" hidden><div class="panel-heading"><div><p class="eyebrow">Papelera</p><h3>Pedidos archivados</h3></div><button class="secondary" id="close-trash" type="button">Cerrar</button></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Estado</th><th>Archivado</th><th>Acción</th></tr></thead><tbody id="trash-table"></tbody></table></div></section>
     </section>
 
     <section id="products-panel" class="panel" hidden>
@@ -59,7 +61,7 @@
     </section>
 
     <section id="finance-panel" class="panel" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">Control financiero</p><h2>Resumen del negocio</h2></div><div class="row-actions"><a class="secondary" href="/api/admin/reports/orders.csv">Exportar pedidos CSV</a><button class="danger" id="reset-finance" type="button">Reiniciar resumen</button></div></div>
+      <div class="panel-heading"><div><p class="eyebrow">Control financiero</p><h2>Resumen del negocio</h2></div><div class="row-actions"><a class="secondary" href="/api/admin/reports/orders.csv">Exportar pedidos CSV</a><a class="secondary" href="/api/admin/backup.json">Descargar respaldo JSON</a><button class="danger" id="reset-finance" type="button">Reiniciar resumen</button></div></div>
       <div id="finance-summary" class="metrics finance-summary"></div>
     </section>
   </main>

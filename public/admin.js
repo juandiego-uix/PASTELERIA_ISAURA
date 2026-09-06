@@ -1,6 +1,7 @@
 const select = (selector) => document.querySelector(selector);
 const BUSINESS_WHATSAPP = "573215457378";
 let dashboard = { orders: [], products: [], metrics: {} };
+let archivedOrders = [];
 let notifiedOrders = new Set(JSON.parse(localStorage.getItem("isaura-alerted-orders") || "[]"));
 let dismissedAlerts = new Set(JSON.parse(localStorage.getItem("isaura-dismissed-alerts") || "[]"));
 let csrfToken = "";
@@ -36,6 +37,12 @@ function escapeHtml(value) {
 
 function money(value) {
   return `$${Number(value || 0).toLocaleString("es-CO")}`;
+}
+
+function isRecentProduct(product) {
+  if (!product.created_at) return false;
+  const createdAt = new Date(product.created_at).getTime();
+  return Number.isFinite(createdAt) && Date.now() - createdAt < 7 * 86400000;
 }
 
 function orderWhatsAppMessage(order) {
@@ -97,7 +104,13 @@ function renderDashboard() {
     <div class="metric"><span>Pedidos pendientes hoy</span><strong>${metrics.pending_today}</strong></div>
     <div class="metric"><span>Entregados este mes</span><strong>${metrics.delivered_month}</strong></div>
     <div class="metric"><span>Productos publicados</span><strong>${dashboard.products.length}</strong></div>`;
-  select("#orders-table").innerHTML = dashboard.orders.map((order) => {
+  const search = select("#order-search")?.value.toLowerCase().trim() || "";
+  const status = select("#order-filter-status")?.value || "";
+  const visibleOrders = dashboard.orders.filter((order) => {
+    const haystack = `${order.nombre_cliente} ${order.contacto} ${order.descripcion}`.toLowerCase();
+    return (!search || haystack.includes(search)) && (!status || order.estado === status);
+  });
+  select("#orders-table").innerHTML = visibleOrders.map((order) => {
     const days = daysUntil(order.fecha);
     const warning = order.estado !== "Entregado" && days <= 2 ? "warning" : "";
     return `<tr>
@@ -107,14 +120,22 @@ function renderDashboard() {
       <td><select class="status-select" data-status="${order.id}">${["Pendiente", "Confirmado", "En producción", "Listo", "Entregado", "Cancelado"].map((status) => `<option ${status === order.estado ? "selected" : ""}>${status}</option>`).join("")}</select></td>
       <td class="row-actions"><button class="detail-button" data-detail="${order.id}" type="button">Ver detalles</button><button class="detail-button" data-edit-order="${order.id}" type="button">Editar</button><button class="danger" data-delete-order="${order.id}" type="button">Eliminar</button></td>
     </tr>`;
-  }).join("") || `<tr><td colspan="5">No hay pedidos todavía.</td></tr>`;
-  select("#products-list").innerHTML = dashboard.products.map((product) => `<article class="admin-product"><img src="${product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`}" alt="${escapeHtml(product.nombre)}"><strong>${escapeHtml(product.nombre)}</strong><small>${escapeHtml(product.categoria)}</small><div class="row-actions"><button class="detail-button" data-edit-product="${product.id}" type="button">Editar</button><button class="danger" data-delete-product="${product.id}" type="button">Eliminar</button></div></article>`).join("") || "<p>No hay productos.</p>";
+  }).join("") || `<tr><td colspan="5">No hay pedidos que coincidan.</td></tr>`;
+  select("#products-list").innerHTML = dashboard.products.map((product) => `<article class="admin-product ${isRecentProduct(product) ? "is-new" : ""}"><img src="${product.image_url || `/uploads/${encodeURIComponent(product.imagen || "")}`}" alt="${escapeHtml(product.nombre)}">${isRecentProduct(product) ? "<span class=\"new-badge\">Nueva creación</span>" : ""}<strong>${escapeHtml(product.nombre)}</strong><small>${escapeHtml(product.categoria)}</small><div class="row-actions"><button class="detail-button" data-edit-product="${product.id}" type="button">Editar</button><button class="danger" data-delete-product="${product.id}" type="button">Eliminar</button></div></article>`).join("") || "<p>No hay productos.</p>";
   select("#inventory-table").innerHTML = (dashboard.inventory || []).map((item) => {
     const lowStock = Number(item.stock_actual) <= Number(item.stock_minimo);
     return `<tr class="${lowStock ? "low-stock" : ""}"><td><strong>${escapeHtml(item.ingrediente)}</strong></td><td>${Number(item.stock_actual).toLocaleString("es-CO")}</td><td>${Number(item.stock_minimo).toLocaleString("es-CO")}</td><td>${escapeHtml(item.unidad)}</td><td><span class="payment-badge">${lowStock ? "Stock bajo" : "Disponible"}</span></td><td><button class="detail-button" data-edit-inventory="${item.id}" type="button">Actualizar</button></td></tr>`;
   }).join("") || `<tr><td colspan="6">No hay insumos registrados.</td></tr>`;
   renderCharts();
   renderAlerts();
+}
+
+function renderTrash() {
+  select("#trash-table").innerHTML = archivedOrders.map((order) => `<tr><td><strong>${escapeHtml(order.nombre_cliente)}</strong><br><small>${escapeHtml(order.descripcion)}</small></td><td>${escapeHtml(order.estado)}</td><td>${escapeHtml(order.archived_at || "")}</td><td><button class="detail-button" data-restore-order="${order.id}" type="button">Restaurar</button></td></tr>`).join("") || `<tr><td colspan="4">La papelera está vacía.</td></tr>`;
+}
+
+async function loadTrash() {
+  try { const response = await api("/api/admin/orders/archived"); archivedOrders = response.data || []; renderTrash(); } catch (error) { showToast(error.message); }
 }
 
 function renderCharts() {
@@ -231,6 +252,10 @@ select("#new-order").addEventListener("click", () => openModal("order-dialog"));
 select("#new-product").addEventListener("click", () => openModal("product-dialog"));
 select("#new-inventory").addEventListener("click", () => openInventoryEditor());
 select("#reload-production").addEventListener("click", loadProduction);
+select("#order-search").addEventListener("input", renderDashboard);
+select("#order-filter-status").addEventListener("change", renderDashboard);
+select("#show-trash").addEventListener("click", async () => { select("#trash-panel").hidden = false; await loadTrash(); });
+select("#close-trash").addEventListener("click", () => { select("#trash-panel").hidden = true; });
 select("#archive-completed").addEventListener("click", async () => { if (!window.confirm("Se archivarán ahora todos los pedidos Entregados o Cancelados. No se borrarán. ¿Continuar?")) return; try { const response = await api("/api/admin/orders/archive-completed", { method: "POST" }); await loadDashboard(); showToast(response.message || `${response.archived || 0} pedido(s) archivado(s)`); } catch (error) { showToast(`No se pudo archivar: ${error.message}`); } });
 select("#reset-finance").addEventListener("click", async () => { const confirmation = window.prompt("Esto pondrá ventas, abonos y gastos en cero, pero conservará clientes y productos. Escribe BORRAR TODO para continuar:"); if (confirmation !== "BORRAR TODO") return; if (!window.confirm("Última advertencia: se eliminarán los gastos y se pondrán en cero los importes de todos los pedidos. ¿Confirmas?")) return; try { await api("/api/admin/reports/reset", { method: "POST", body: JSON.stringify({ confirmacion: confirmation }) }); await loadDashboard(); await loadFinance(); showToast("Resumen financiero reiniciado"); } catch (error) { showToast(error.message); } });
 
@@ -243,4 +268,4 @@ select("#inventory-form").addEventListener("submit", async (event) => { event.pr
 
 select("#orders-table").addEventListener("change", async (event) => { if (!event.target.dataset.status) return; try { await api(`/api/admin/orders/${event.target.dataset.status}`, { method: "PATCH", body: JSON.stringify({ estado: event.target.value }) }); const order = dashboard.orders.find((item) => String(item.id) === event.target.dataset.status); if (order) order.estado = event.target.value; renderDashboard(); showToast("Estado actualizado"); } catch (error) { showToast(error.message); } });
 
-document.addEventListener("click", async (event) => { const readyId = event.target.dataset.productionReady; if (readyId) { try { await api(`/api/admin/orders/${readyId}/lifecycle`, { method: "PATCH", body: JSON.stringify({ estado: "Listo" }) }); await loadProduction(); showToast("Pedido marcado como listo"); } catch (error) { showToast(error.message); } return; } const dismissId = event.target.dataset.dismissAlert; if (dismissId) { dismissedAlerts.add(String(dismissId)); localStorage.setItem("isaura-dismissed-alerts", JSON.stringify([...dismissedAlerts])); renderAlerts(); return; } const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const editInventoryId = event.target.dataset.editInventory; if (editInventoryId) { const item = dashboard.inventory.find((entry) => String(entry.id) === editInventoryId); if (item) openInventoryEditor(item); return; } const deleteTarget = event.target.closest("[data-delete-order], [data-delete-product]"); if (!deleteTarget) return; const orderId = deleteTarget.dataset.deleteOrder; const productId = deleteTarget.dataset.deleteProduct; if (!window.confirm("Si el pedido tiene precio, abono o deuda se archivará para conservar su historial; solo se borrarán pedidos sin dinero registrado. ¿Continuar?")) return; try { const resource = orderId ? "orders" : "products"; const response = await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); await loadDashboard(); showToast(response.message || "Registro procesado correctamente"); } catch (error) { showToast(`No se pudo procesar: ${error.message}`); } });
+document.addEventListener("click", async (event) => { const restoreId = event.target.dataset.restoreOrder; if (restoreId) { try { await api(`/api/admin/orders/${restoreId}/restore`, { method: "POST" }); await loadTrash(); await loadDashboard(); showToast("Pedido restaurado"); } catch (error) { showToast(error.message); } return; } const readyId = event.target.dataset.productionReady; if (readyId) { try { await api(`/api/admin/orders/${readyId}/lifecycle`, { method: "PATCH", body: JSON.stringify({ estado: "Listo" }) }); await loadProduction(); showToast("Pedido marcado como listo"); } catch (error) { showToast(error.message); } return; } const dismissId = event.target.dataset.dismissAlert; if (dismissId) { dismissedAlerts.add(String(dismissId)); localStorage.setItem("isaura-dismissed-alerts", JSON.stringify([...dismissedAlerts])); renderAlerts(); return; } const detailId = event.target.dataset.detail; if (detailId) { const order = dashboard.orders.find((item) => String(item.id) === detailId); if (order) showOrderDetails(order); return; } const editOrderId = event.target.dataset.editOrder; if (editOrderId) { const order = dashboard.orders.find((item) => String(item.id) === editOrderId); if (order) openOrderEditor(order); return; } const editProductId = event.target.dataset.editProduct; if (editProductId) { const product = dashboard.products.find((item) => String(item.id) === editProductId); if (product) openProductEditor(product); return; } const editInventoryId = event.target.dataset.editInventory; if (editInventoryId) { const item = dashboard.inventory.find((entry) => String(entry.id) === editInventoryId); if (item) openInventoryEditor(item); return; } const deleteTarget = event.target.closest("[data-delete-order], [data-delete-product]"); if (!deleteTarget) return; const orderId = deleteTarget.dataset.deleteOrder; const productId = deleteTarget.dataset.deleteProduct; if (!window.confirm("Si el pedido tiene precio, abono o deuda se archivará para conservar su historial; solo se borrarán pedidos sin dinero registrado. ¿Continuar?")) return; try { const resource = orderId ? "orders" : "products"; const response = await api(`/api/admin/${resource}/${orderId || productId}`, { method: "DELETE" }); await loadDashboard(); showToast(response.message || "Registro procesado correctamente"); } catch (error) { showToast(`No se pudo procesar: ${error.message}`); } });

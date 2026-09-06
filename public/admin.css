@@ -136,6 +136,10 @@ h2 { font-size: 30px; }
 .tab.active { border-color: var(--rust); color: var(--ink); font-weight: 700; }
 .panel { min-height: 180px; }
 .table-wrap { overflow: auto; }
+.order-filters { display: flex; gap: 10px; margin: 18px 0; }
+.order-filters input, .order-filters select { min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; }
+.order-filters input { flex: 1; }
+.trash-panel { margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--rust); }
 table { width: 100%; min-width: 850px; border-collapse: collapse; }
 th, td { padding: 15px 10px; border-top: 1px solid var(--line); text-align: left; vertical-align: middle; }
 th { color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
@@ -149,7 +153,9 @@ td small { color: var(--muted); }
 .danger { border: 0; background: none; color: var(--danger); cursor: pointer; }
 
 .admin-products { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-.admin-product { display: flex; flex-direction: column; gap: 7px; padding: 12px; border: 1px solid var(--line); background: #fff; }
+.admin-product { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 12px; border: 1px solid var(--line); background: #fff; }
+.admin-product.is-new { border: 2px solid var(--rust); box-shadow: 0 8px 0 #e7c7b9, 0 16px 26px rgba(189, 110, 77, .14); }
+.new-badge { position: absolute; top: 10px; left: 10px; z-index: 1; padding: 5px 8px; background: var(--rust); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 .admin-product img { width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9ece6; }
 .admin-product strong { margin-top: 3px; }
 .admin-product small { color: var(--muted); }
@@ -178,6 +184,7 @@ td small { color: var(--muted); }
 	.metrics { grid-template-columns: 1fr; }
 	.analytics-grid { grid-template-columns: 1fr; }
 	.admin-products { grid-template-columns: repeat(2, 1fr); }
+	.order-filters { flex-direction: column; }
 	.panel-heading .primary { margin-top: 18px; }
 	.alert { display: block; }
 	.alert .detail-button { margin-top: 10px; }

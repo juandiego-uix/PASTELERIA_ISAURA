@@ -494,6 +494,44 @@ def archive_completed_orders():
         return database_error(error)
 
 
+@app.get("/api/admin/orders/archived")
+@role_required("administrador")
+def archived_orders():
+    try:
+        result = get_supabase().table("citas").select("*").not_.is_("archived_at", "null").order("archived_at", desc=True).execute()
+        return jsonify({"data": result.data or []})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.post("/api/admin/orders/<int:order_id>/restore")
+@role_required("administrador")
+def restore_order(order_id):
+    try:
+        result = get_supabase().table("citas").update({"archived_at": None}).eq("id", order_id).execute()
+        if not result.data:
+            return error_response("Pedido archivado no encontrado", 404)
+        return jsonify({"data": result.data[0], "message": "Pedido restaurado correctamente"})
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
+@app.get("/api/admin/backup.json")
+@role_required("administrador")
+def download_backup():
+    try:
+        client = get_supabase()
+        backup = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "orders": client.table("citas").select("*").execute().data or [],
+            "products": client.table("productos").select("*").execute().data or [],
+            "inventory": client.table("insumos").select("*").execute().data or [],
+        }
+        return jsonify(backup), 200
+    except (APIError, RuntimeError, httpx.HTTPError) as error:
+        return database_error(error)
+
+
 @app.post("/api/admin/products")
 @require_admin
 def admin_create_product():

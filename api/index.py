@@ -461,11 +461,21 @@ def admin_update_order(order_id):
 def admin_delete_order(order_id):
     try:
         client = get_supabase()
-        existing = client.table("citas").select("id").eq("id", order_id).limit(1).execute().data or []
+        existing = client.table("citas").select("id,precio,abono,archived_at").eq("id", order_id).limit(1).execute().data or []
         if not existing:
             return error_response("El pedido ya no existe", 404)
+        order = existing[0]
+        if order.get("archived_at"):
+            return error_response("El pedido ya está archivado", 409)
+        if float(order.get("precio") or 0) > 0 or float(order.get("abono") or 0) > 0:
+            client.table("citas").update({"archived_at": datetime.now(timezone.utc).isoformat()}).eq("id", order_id).execute()
+            return jsonify({
+                "success": True,
+                "action": "archived",
+                "message": "El pedido conserva valores de dinero y fue archivado para proteger su historial.",
+            }), 200
         client.table("citas").delete().eq("id", order_id).execute()
-        return jsonify({"success": True, "deleted": order_id}), 200
+        return jsonify({"success": True, "action": "deleted", "message": "Pedido eliminado correctamente."}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 
@@ -474,25 +484,12 @@ def admin_delete_order(order_id):
 @role_required("administrador")
 def archive_completed_orders():
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
         client = get_supabase()
-        orders = client.table("citas").select("id,estado,fecha,updated_at,archived_at").execute().data or []
-        eligible = []
-        for order in orders:
-            if order.get("archived_at") or order.get("estado") not in {"Entregado", "Cancelado"}:
-                continue
-            reference = order.get("updated_at") or f"{order.get('fecha')}T00:00:00+00:00"
-            try:
-                reference_date = datetime.fromisoformat(str(reference).replace("Z", "+00:00"))
-                if reference_date.tzinfo is None:
-                    reference_date = reference_date.replace(tzinfo=timezone.utc)
-            except ValueError:
-                continue
-            if reference_date <= cutoff:
-                eligible.append(order["id"])
+        orders = client.table("citas").select("id,estado,archived_at").execute().data or []
+        eligible = [order["id"] for order in orders if not order.get("archived_at") and order.get("estado") in {"Entregado", "Cancelado"}]
         if eligible:
             client.table("citas").update({"archived_at": datetime.now(timezone.utc).isoformat()}).in_("id", eligible).execute()
-        return jsonify({"archived": len(eligible), "message": "No hay pedidos finalizados con más de 30 días" if not eligible else "Pedidos archivados correctamente"}), 200
+        return jsonify({"archived": len(eligible), "message": "No hay pedidos entregados o cancelados para archivar" if not eligible else "Pedidos finalizados archivados correctamente"}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 

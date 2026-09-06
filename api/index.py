@@ -488,7 +488,7 @@ def archive_completed_orders():
                 eligible.append(order["id"])
         if eligible:
             client.table("citas").update({"archived_at": datetime.now(timezone.utc).isoformat()}).in_("id", eligible).execute()
-        return jsonify({"archived": len(eligible)}), 200
+        return jsonify({"archived": len(eligible), "message": "No hay pedidos finalizados con más de 30 días" if not eligible else "Pedidos archivados correctamente"}), 200
     except (APIError, RuntimeError, httpx.HTTPError) as error:
         return database_error(error)
 
